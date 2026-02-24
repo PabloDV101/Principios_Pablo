@@ -30,7 +30,8 @@ public class Cuadrado extends Forma {
 
   /**
    */
-  public void dibujar()
+  @Override
+  protected void dibujar()
   {
 	  System.out.println("Se dibuja un cuadrado");
   }

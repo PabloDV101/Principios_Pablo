@@ -1,0 +1,3 @@
+interface Trabajable{
+void trabajar();
+}

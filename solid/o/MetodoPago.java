@@ -1,0 +1,3 @@
+interface MetodoPago{
+void procesarPago();
+}

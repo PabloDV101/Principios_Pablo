@@ -1,0 +1,9 @@
+.dart_tool/
+.git/
+.idea/
+ios/
+android/
+linux/
+windows/
+macos/
+# NO pongas build/ aquí si vas a usar el Dockerfile simplificado

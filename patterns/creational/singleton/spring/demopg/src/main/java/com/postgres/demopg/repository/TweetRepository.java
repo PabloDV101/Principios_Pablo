@@ -5,7 +5,8 @@ import org.springframework.stereotype.Repository;
 
 import com.postgres.demopg.models.Tweet;
 
+
 @Repository
-public interface TweetRepository extends JpaRepository<Tweet, Long>{
+public interface TweetRepository extends JpaRepository<Tweet, Long> {
 
 }

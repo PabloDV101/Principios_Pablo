@@ -1,8 +1,16 @@
 package com.projects.bandas.controllers;
 
-import java.util.HashSet;
-import java.util.Set;
-
+import com.projects.bandas.models.ERole;
+import com.projects.bandas.models.Role;
+import com.projects.bandas.models.User;
+import com.projects.bandas.payload.JwtResponse;
+import com.projects.bandas.payload.LoginRequest;
+import com.projects.bandas.payload.SignupRequest;
+import com.projects.bandas.repository.RoleRepository;
+import com.projects.bandas.repository.UserRepository;
+import com.projects.bandas.security.jwt.JwtUtils;
+import com.projects.bandas.security.services.UserDetailsImpl;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -10,23 +18,12 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.projects.bandas.models.ERole;
-import com.projects.bandas.models.JwtResponse;
-import com.projects.bandas.models.LoginRequest;
-import com.projects.bandas.models.Role;
-import com.projects.bandas.models.SignupRequest;
-import com.projects.bandas.models.User;
-import com.projects.bandas.repository.RoleRepository;
-import com.projects.bandas.repository.UserRepository;
-import com.projects.bandas.security.jwt.JwtUtils;
-
-import jakarta.validation.Valid;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -48,34 +45,50 @@ public class AuthController {
     JwtUtils jwtUtils;
 
     @PostMapping("/signin")
-    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
-        
-        return ResponseEntity.ok(new JwtResponse(jwt, loginRequest.getUsername()));
+
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(item -> item.getAuthority())
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(),
+                userDetails.getUsername(), userDetails.getEmail(), roles));
     }
 
-    @PostMapping("/signup") // Sin el "/" al inicio para que sea /api/auth/signup
+    @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             return ResponseEntity.badRequest().body("Error: Username ya existe");
         }
 
-        User user = new User(signUpRequest.getUsername(), 
-                           signUpRequest.getEmail(),
-                           encoder.encode(signUpRequest.getPassword()));
+        if (userRepository.existsByEmail(signUpRequest.getEmail())) {
+            return ResponseEntity.badRequest().body("Error: Email ya está en uso");
+        }
 
+        User user = new User(signUpRequest.getUsername(),
+                signUpRequest.getEmail(),
+                encoder.encode(signUpRequest.getPassword()));
+
+        Set<String> strRoles = signUpRequest.getRole();
         Set<Role> roles = new HashSet<>();
-        Role userRole = roleRepository.findByName(ERole.ROLE_USER)
-                .orElseThrow(() -> new RuntimeException("Error: Role no encontrado."));
-        roles.add(userRole);
+
+        if (strRoles == null) {
+            Role userRole = roleRepository.findByName(ERole.ROLE_USER)
+                    .orElseThrow(() -> new RuntimeException("Error: Role no encontrado."));
+            roles.add(userRole);
+        } else {
+            // Lógica para asignar otros roles si fuera necesario
+        }
 
         user.setRoles(roles);
         userRepository.save(user);
 
-        return ResponseEntity.ok("Usuario registrado exitosamente");
+        return ResponseEntity.ok("Usuario registrado exitosamente!");
     }
 }

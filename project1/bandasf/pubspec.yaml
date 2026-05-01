@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.0
+  sdk: '>=3.0.0 <4.0.0' # Esto le dice a Flutter que use cualquier versión de la rama 3.x
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -30,9 +30,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.1.0
-  flutter_secure_storage: ^9.0.0
+  http: ^1.1.0                # Para las peticiones al backend
+  flutter_secure_storage: ^9.0.0 # Para guardar el JWT como si fuera una caja fuerte
+  provider: ^6.0.5            # Para manejar el estado (saber si estamos logueados)
   cupertino_icons: ^1.0.8
+  image_picker: ^1.1.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -47,7 +49,8 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^6.0.0
+  flutter_lints: ^3.0.0
+
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

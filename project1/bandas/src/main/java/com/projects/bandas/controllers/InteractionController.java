@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -52,19 +53,33 @@ public class InteractionController {
 
     // --- REACCIONES ---
 
+
     @PostMapping("/reaccionar")
-    public Reaccion reaccionar(@PathVariable Long bandaId, @RequestParam TipoReaccion tipo) {
+    public ResponseEntity<?> reaccionar(@RequestParam Long bandaId, @RequestParam TipoReaccion tipo) {
         Banda banda = bandaRepository.findById(bandaId).orElseThrow();
         User user = securityUtils.getUsuarioLogueado();
 
-        Reaccion reaccion = reaccionRepository.findByUsuarioAndBanda(user, banda)
-                .orElse(new Reaccion());
+        Optional<Reaccion> reaccionExistente = reaccionRepository.findByUsuarioAndBanda(user, banda);
 
-        reaccion.setUsuario(user);
-        reaccion.setBanda(banda);
-        reaccion.setTipo(tipo);
-
-        return reaccionRepository.save(reaccion);
+        if (reaccionExistente.isPresent()) {
+            Reaccion reaccion = reaccionExistente.get();
+            // Si el usuario da click en el mismo tipo que ya tenía, lo borramos (toggle off)
+            if (reaccion.getTipo() == tipo) {
+                reaccionRepository.delete(reaccion);
+                return ResponseEntity.ok().build(); // Devuelve vacío porque se eliminó
+            } else {
+                // Si da click en el contrario (ej: cambia Like a Dislike), actualizamos
+                reaccion.setTipo(tipo);
+                return ResponseEntity.ok(reaccionRepository.save(reaccion));
+            }
+        } else {
+            // Si no existía, creamos una nueva
+            Reaccion nuevaReaccion = new Reaccion();
+            nuevaReaccion.setUsuario(user);
+            nuevaReaccion.setBanda(banda);
+            nuevaReaccion.setTipo(tipo);
+            return ResponseEntity.ok(reaccionRepository.save(nuevaReaccion));
+        }
     }
     @GetMapping("/comentarios")
     public ResponseEntity<List<ComentarioDTO>> getComentarios(@PathVariable Long bandaId) {

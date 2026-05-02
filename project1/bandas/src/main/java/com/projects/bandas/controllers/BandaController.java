@@ -1,10 +1,9 @@
 package com.projects.bandas.controllers;
 
-import com.projects.bandas.models.Banda;
-import com.projects.bandas.models.ERole;
-import com.projects.bandas.models.User;
+import com.projects.bandas.models.*;
 import com.projects.bandas.repository.BandaRepository;
 import com.projects.bandas.repository.UserRepository;
+import com.projects.bandas.repository.ReaccionRepository;
 import com.projects.bandas.security.SecurityUtils;
 import com.projects.bandas.security.services.UserDetailsImpl;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/bandas")
@@ -24,6 +24,8 @@ public class BandaController {
     BandaRepository bandaRepository;
     @Autowired
     SecurityUtils securityUtils;
+    @Autowired
+    ReaccionRepository reaccionRepository;
 
     @Autowired
     UserRepository userRepository;
@@ -100,8 +102,14 @@ public class BandaController {
     // BandaController.java
     @GetMapping("/feed")
     public List<Banda> getAllBandas() {
-        // Si usas un repositorio, simplemente findAll() debería bastar
-        List<Banda> bandas = bandaRepository.findAll();
+        List<Banda> bandas = bandaRepository.findAllWithReacciones();
+        User usuarioLogueado = securityUtils.getUsuarioLogueado();
+
+        for (Banda b : bandas) {
+            // Importante: Asegúrate de que reaccionRepository esté funcionando bien
+            b.setDioLike(reaccionRepository.existsByUsuarioAndBandaAndTipo(usuarioLogueado, b, TipoReaccion.LIKE));
+            b.setDioDislike(reaccionRepository.existsByUsuarioAndBandaAndTipo(usuarioLogueado, b, TipoReaccion.DISLIKE));
+        }
         return bandas;
     }
 

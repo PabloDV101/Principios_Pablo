@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/band_model.dart';
@@ -72,25 +71,29 @@ class ApiService {
     }
   }
 
-  // En tu ApiService.dart
-  Future<void> reaccionar(int bandaId, String tipo) async {
-    final token = await _storage.read(key: 'jwt_token');
+// En ApiService.dart
+Future<void> reaccionar(int bandaId, String tipo) async {
+  final token = await _storage.read(key: 'jwt_token');
+  
+  // Cambiamos a esta estructura para asegurar que el RequestParam llegue bien
+  final url = Uri.parse('$baseUrl/bandas/$bandaId/reaccionar')
+      .replace(queryParameters: {
+        'bandaId': bandaId.toString(),
+        'tipo': tipo, // "LIKE" o "DISLIKE"
+      });
 
-    // URL: /api/bandas/{bandaId}/reaccionar?tipo=LIKE
-    final url = Uri.parse('$baseUrl/bandas/$bandaId/reaccionar?tipo=$tipo');
-
-    final response = await http.post(
-      url,
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json",
-      },
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception("Error al reaccionar: ${response.statusCode}");
-    }
+  final response = await http.post(
+    url,
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+  );
+  
+  if (response.statusCode != 200) {
+    throw Exception('Error al reaccionar: ${response.statusCode}');
   }
+}
 
 // En tu archivo services/api_service.dart
 

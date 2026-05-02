@@ -20,6 +20,7 @@ class BandCard extends StatelessWidget {
   final String usuarioLogueado;
   final bool esAdmin;
   final VoidCallback onLikePressed;
+  final VoidCallback onDislikePressed;
   final VoidCallback onEditPressed;
   final VoidCallback onDeletePressed;
   final VoidCallback onCommentPressed;
@@ -28,6 +29,7 @@ class BandCard extends StatelessWidget {
     super.key,
     required this.banda,
     required this.onLikePressed,
+    required this.onDislikePressed,
     required this.onEditPressed,
     required this.onDeletePressed,
     required this.usuarioLogueado,
@@ -46,52 +48,22 @@ class BandCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Cabecera (Avatar, Nombre y Menú)
           ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.indigo[100],
-              child: Icon(Icons.person, color: Colors.indigo[800]),
-            ),
-            // En tu BandCard.dart, ajusta esta parte:
-            // En BandCard.dart
+            leading: CircleAvatar(backgroundColor: Colors.indigo[100], child: Icon(Icons.person, color: Colors.indigo[800])),
             title: Row(
               children: [
-                Expanded(
-                  child: Text(
-                    banda.nombre,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8), // Pequeño espacio
-                Text(
-                  DateFormat('dd/MM/yy')
-                      .format(banda.fechaCreacion ?? DateTime.now()),
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
+                Expanded(child: Text(banda.nombre, style: const TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                Text(DateFormat('dd/MM/yy').format(banda.fechaCreacion ?? DateTime.now()), style: const TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
             subtitle: Text("Por: ${banda.usernameAutor}"),
-            // 1. Definimos las reglas de negocio
-
-// Pásale este booleano desde HomeScreen
-
-            trailing: (esDuenio ||
-                    esAdmin) // Usas la variable pasada por el constructor
-                ? PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'editar') onEditPressed();
-                      if (value == 'eliminar') onDeletePressed();
-                    },
-                    itemBuilder: (context) => [
-                      if (esDuenio) // Solo el dueño ve Editar
-                        const PopupMenuItem(
-                            value: 'editar', child: Text("Editar")),
-                      const PopupMenuItem(
-                          value: 'eliminar', child: Text("Eliminar")),
-                    ],
-                  )
-                : null,
+            trailing: (esDuenio || esAdmin) ? PopupMenuButton<String>(
+              onSelected: (value) { if (value == 'editar') onEditPressed(); if (value == 'eliminar') onDeletePressed(); },
+              itemBuilder: (context) => [
+                if (esDuenio) const PopupMenuItem(value: 'editar', child: Text("Editar")),
+                const PopupMenuItem(value: 'eliminar', child: Text("Eliminar")),
+              ],
+            ) : null,
           ),
 
           // 2. Imagen de la Banda
@@ -132,28 +104,27 @@ class BandCard extends StatelessWidget {
 
           const Divider(height: 1),
 
-          // 4. Barra de Acciones
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             child: Row(
               children: [
+                // AQUÍ LA LÓGICA DE REACCIÓN ACTIVA
                 IconButton(
-                  icon:
-                      const Icon(Icons.thumb_up_outlined, color: Colors.indigo),
+                  icon: Icon(Icons.thumb_up, color: banda.dioLike ? Colors.indigo : Colors.grey),
                   onPressed: onLikePressed,
                 ),
-                Text(
-                  "${banda.likesCount}",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Text("${banda.likesCount}"),
+                
+                IconButton(
+                  icon: Icon(Icons.thumb_down, color: banda.dioDislike ? Colors.red : Colors.grey),
+                  onPressed: onDislikePressed,
                 ),
+                Text("${banda.dislikesCount}"),
+                
                 const Spacer(),
                 TextButton.icon(
-                  icon: const Icon(Icons.mode_comment_outlined,
-                      color: Colors.grey),
-                  label: const Text(
-                    "Ver Comentarios",
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  icon: const Icon(Icons.mode_comment_outlined, color: Colors.grey),
+                  label: const Text("Ver Comentarios"),
                   onPressed: onCommentPressed,
                 ),
               ],
@@ -216,6 +187,19 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint("Error al cargar feed: $e");
     }
   }
+
+Future<void> ejecutarReaccion(int index, String tipo) async {
+  try {
+    // Llamamos al backend que ahora maneja el toggle
+    await _apiService.reaccionar(misBandas[index].id!, tipo);
+    
+    // Refrescamos todo el feed para obtener los contadores y estados actualizados
+    // desde el servidor, que es la única forma de estar 100% seguros del resultado.
+    await _cargarBandas();
+  } catch (e) {
+    debugPrint("Error al reaccionar: $e");
+  }
+}
 
   // Método para actualizar la lista y reflejar los cambios en la UI
   Future<void> incrementarLike(int index) async {
@@ -327,7 +311,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       usuarioLogueado: _nombreUsuarioLogueado,
                       esAdmin:
                           _esAdmin, // <--- Usa directamente la variable de estado
-                      onLikePressed: () => incrementarLike(index),
+                      onLikePressed: () => ejecutarReaccion(index, "LIKE"),
+                      onDislikePressed: () =>
+                          ejecutarReaccion(index, "DISLIKE"),
                       onCommentPressed: () => Navigator.pushNamed(
                           context, '/comments',
                           arguments: banda.id),

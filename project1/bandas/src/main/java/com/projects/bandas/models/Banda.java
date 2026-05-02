@@ -1,5 +1,6 @@
 package com.projects.bandas.models;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import org.hibernate.annotations.Formula;
@@ -43,7 +44,7 @@ public class Banda {
     @OneToMany(mappedBy = "banda", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Comentario> comentarios = new ArrayList<>();
 
-    @OneToMany(mappedBy = "banda", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "banda", cascade = CascadeType.ALL)
     private List<Reaccion> reacciones = new ArrayList<>();
 
     @Formula("(SELECT count(*) FROM reacciones r WHERE r.banda_id = id AND r.tipo = 'LIKE')")
@@ -52,9 +53,20 @@ public class Banda {
     @Formula("(SELECT count(*) FROM reacciones r WHERE r.banda_id = id AND r.tipo = 'DISLIKE')")
     private int dislikesCount;
 
-    // ¡Solo necesitas getters! (No setters)
-    public int getLikesCount() { return likesCount; }
-    public int getDislikesCount() { return dislikesCount; }
+    @JsonProperty("dioLike")
+    @Transient
+    private boolean dioLike;
+    @Transient
+    @JsonProperty("dioDislike")
+    private boolean dioDislike;
+
+    public long getLikesCount() {
+        return reacciones.stream().filter(r -> r.getTipo() == TipoReaccion.LIKE).count();
+    }
+
+    public long getDislikesCount() {
+        return reacciones.stream().filter(r -> r.getTipo() == TipoReaccion.DISLIKE).count();
+    }
 
     // Getters y Setters
     public Long getId() { return id; }
@@ -69,4 +81,8 @@ public class Banda {
     public void setUrlImagen(String urlImagen) { this.urlImagen = urlImagen; }
     public User getUsuario() { return usuario; }
     public void setUsuario(User usuario) { this.usuario = usuario; }
+    public boolean isDioLike() { return dioLike; }
+    public void setDioLike(boolean dioLike) { this.dioLike = dioLike; }
+    public boolean isDioDislike() { return dioDislike; }
+    public void setDioDislike(boolean dioDislike) { this.dioDislike = dioDislike; }
 }

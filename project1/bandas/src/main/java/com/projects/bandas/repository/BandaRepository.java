@@ -3,6 +3,7 @@ package com.projects.bandas.repository;
 import com.projects.bandas.models.Banda;
 import com.projects.bandas.models.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 
@@ -10,4 +11,7 @@ import java.util.List;
 public interface BandaRepository extends JpaRepository<Banda, Long> {
     // Para buscar todas las bandas de un usuario específico
     List<Banda> findByUsuario(User usuario);
-}
+
+        @Query("SELECT b FROM Banda b LEFT JOIN FETCH b.reacciones")
+        List<Banda> findAllWithReacciones();
+    }

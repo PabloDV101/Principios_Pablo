@@ -5,6 +5,8 @@ class Band {
   final String urlImagen;
   final int likesCount;    // Nuevo
   final int dislikesCount; // Nuevo
+  final bool dioLike;       // Nuevo: si el usuario actual dio like
+  final bool dioDislike;    // Nuevo: si el usuario actual dio dislike
   final DateTime? fechaCreacion;
   final String usernameAutor; // Opcional, si tu backend lo devuelve
 
@@ -15,6 +17,8 @@ class Band {
     required this.urlImagen,
     this.likesCount = 0,
     this.dislikesCount = 0,
+    this.dioLike = false,
+    this.dioDislike = false,
     this.fechaCreacion,
     required this.usernameAutor,
 
@@ -28,6 +32,8 @@ factory Band.fromJson(Map<String, dynamic> json) {
     urlImagen: json['urlImagen'],
     likesCount: json['likesCount'] ?? 0,
     dislikesCount: json['dislikesCount'] ?? 0,
+    dioLike: json['dioLike'] ?? false,
+    dioDislike: json['dioDislike'] ?? false,
     // CAMBIO AQUÍ: Manejo seguro de la fecha
     fechaCreacion: json['fechaCreacion'] != null 
       ? DateTime.tryParse(json['fechaCreacion'].toString()) 
@@ -48,4 +54,19 @@ factory Band.fromJson(Map<String, dynamic> json) {
 
     };
   }
+
+  Band copyWith({bool? dioLike, bool? dioDislike, int? likesCount, int? dislikesCount}) {
+  return Band(
+    id: this.id,
+    nombre: this.nombre,
+    descripcion: this.descripcion,
+    urlImagen: this.urlImagen,
+    likesCount: likesCount ?? this.likesCount,
+    dislikesCount: dislikesCount ?? this.dislikesCount,
+    fechaCreacion: this.fechaCreacion,
+    usernameAutor: this.usernameAutor,
+    dioLike: dioLike ?? this.dioLike,
+    dioDislike: dioDislike ?? this.dioDislike,
+  );
+}
 }

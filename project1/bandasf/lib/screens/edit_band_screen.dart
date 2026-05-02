@@ -37,30 +37,25 @@ class _EditBandScreenState extends State<EditBandScreen> {
                 controller: _descController,
                 decoration: const InputDecoration(labelText: "Descripción")),
             ElevatedButton(
+              // Reemplaza el onPressed de tu ElevatedButton en EditBandScreen
               onPressed: () async {
-                // 1. Crear un objeto Band con los nuevos datos
                 Band bandaEditada = Band(
-                  id: widget.banda.id, // Importante mantener el ID
+                  id: widget.banda.id,
                   nombre: _nombreController.text,
                   descripcion: _descController.text,
-                  urlImagen:
-                      widget.banda.urlImagen, // Mantenemos la imagen original
-                  usernameAutor: widget.banda.usernameAutor, // Mantenemos el autor original
+                  urlImagen: widget.banda.urlImagen,
+                  usernameAutor: widget.banda.usernameAutor,
                 );
 
                 try {
-                  // 2. Llamar al servicio (asegúrate de tener este método en tu ApiService)
-                  // Dentro del botón Guardar de EditBandScreen
-await _apiService.editarBanda(widget.banda.id!, bandaEditada);
-Navigator.pop(context, true); // Devuelves 'true' al HomeScreen
-
-                  // 3. Regresar exitosamente
+                  await _apiService.editarBanda(widget.banda.id!, bandaEditada);
                   if (!mounted) return;
-                  Navigator.pop(context,
-                      true); // Enviamos 'true' para avisar que se editó
-                      
+
+                  // Solo un pop, enviando true
+                  Navigator.pop(context, true);
                 } catch (e) {
                   debugPrint("Error al editar: $e");
+                  // Opcional: mostrar un SnackBar si falla
                 }
               },
               child: const Text("Guardar Cambios"),

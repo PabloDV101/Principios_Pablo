@@ -41,51 +41,60 @@ class _CommentsScreenState extends State<CommentsScreen> {
               future: _comentariosFuture,
               builder: (context, snapshot) {
                 // En tu builder de FutureBuilder:
-if (snapshot.connectionState == ConnectionState.waiting) {
-  return const Center(child: CircularProgressIndicator());
-}
-if (snapshot.hasError) {
-  return Center(child: Text("Error: ${snapshot.error}"));
-}
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}"));
+                }
 // AGREGA ESTO: Validación estricta
-if (!snapshot.hasData || (snapshot.data as List).isEmpty) {
-  return const Center(child: Text("Aún no hay comentarios"));
-}
+                if (!snapshot.hasData || (snapshot.data as List).isEmpty) {
+                  return const Center(child: Text("Aún no hay comentarios"));
+                }
 
-final comentarios = snapshot.data!;
-return ListView.builder(
-  itemCount: comentarios.length,
-  itemBuilder: (context, index) {
-    final c = comentarios[index];
-    return // Dentro del itemBuilder de tu ListView
-Container(
-  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-  padding: const EdgeInsets.all(12),
-  decoration: BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(15),
-    boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 4)],
-  ),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(c.username, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(
-            DateFormat('HH:mm - dd/MM/yy').format(c.fechaCreacion ?? DateTime.now()),
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
-          ),
-        ],
-      ),
-      const SizedBox(height: 5),
-      Text(c.texto),
-    ],
-  ),
-);
-  },
-);
+                final comentarios = snapshot.data!;
+                return ListView.builder(
+                  itemCount: comentarios.length,
+                  itemBuilder: (context, index) {
+                    final c = comentarios[index];
+                    return // Dentro del itemBuilder de tu ListView
+                        Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                              color: Colors.grey.withOpacity(0.1),
+                              blurRadius: 4)
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(c.username,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              Text(
+                                DateFormat('HH:mm - dd/MM/yy')
+                                    .format(c.fechaCreacion ?? DateTime.now()),
+                                style: const TextStyle(
+                                    fontSize: 11, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Text(c.texto),
+                        ],
+                      ),
+                    );
+                  },
+                );
               },
             ),
           ),
@@ -107,7 +116,8 @@ Container(
                   icon: const Icon(Icons.send, color: Colors.indigo),
                   onPressed: () async {
                     if (_comentarioController.text.isNotEmpty) {
-                      await _apiService.publicarComentario(widget.bandaId, _comentarioController.text);
+                      await _apiService.publicarComentario(
+                          widget.bandaId, _comentarioController.text);
                       _comentarioController.clear();
                       _cargarComentarios(); // Recargamos la lista
                     }

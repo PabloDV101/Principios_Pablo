@@ -1,6 +1,7 @@
 package com.projects.bandas.controllers;
 
 import com.projects.bandas.models.Banda;
+import com.projects.bandas.models.ERole;
 import com.projects.bandas.models.User;
 import com.projects.bandas.repository.BandaRepository;
 import com.projects.bandas.repository.UserRepository;
@@ -15,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@CrossOrigin(origins = "*", allowedHeaders = "*", methods = {RequestMethod.POST, RequestMethod.GET, RequestMethod.OPTIONS})
 @RestController
 @RequestMapping("/api/bandas")
 public class BandaController {
@@ -72,23 +72,30 @@ public class BandaController {
         return ResponseEntity.ok(bandaRepository.save(bandaExistente));
     }
 
-    @DeleteMapping("/eliminar/{id}")
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')") // Usuarios y Admin pueden intentar borrar
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<?> eliminarBanda(@PathVariable Long id) {
+        // ESTO VA A IMPRIMIR EN LA CONSOLA DE TU SERVIDOR JAVA
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        System.out.println("--- DEBUG SEGURIDAD ---");
+        System.out.println("Usuario: " + authentication.getName());
+        System.out.println("Roles: " + authentication.getAuthorities());
+        System.out.println("¿Es autenticado?: " + authentication.isAuthenticated());
+
         Banda banda = bandaRepository.findById(id).orElseThrow();
         User usuarioLogueado = securityUtils.getUsuarioLogueado();
 
-        // El dueño O el administrador pueden eliminar
-        boolean esDuenio = banda.getUsuario().getId().equals(usuarioLogueado.getId());
+        // NUEVA LÓGICA: Comprobamos si tiene el rol de ADMIN en la lista de roles
         boolean esAdmin = usuarioLogueado.getRoles().stream()
-                .anyMatch(r -> r.getName().toString().equals("ROLE_ADMIN"));
+                .anyMatch(r -> r.getName() == ERole.ROLE_ADMIN);
+
+        boolean esDuenio = banda.getUsuario().getId().equals(usuarioLogueado.getId());
 
         if (esDuenio || esAdmin) {
             bandaRepository.delete(banda);
-            return ResponseEntity.ok("Banda eliminada exitosamente");
+            return ResponseEntity.ok().build();
         }
-
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("No tienes permiso para eliminar esta banda");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
     // BandaController.java
     @GetMapping("/feed")

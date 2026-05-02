@@ -78,13 +78,13 @@ public class AuthController {
         Set<String> strRoles = signUpRequest.getRole();
         Set<Role> roles = new HashSet<>();
 
-        if (strRoles == null) {
-            Role userRole = roleRepository.findByName(ERole.ROLE_USER)
-                    .orElseThrow(() -> new RuntimeException("Error: Role no encontrado."));
-            roles.add(userRole);
-        } else {
-            // Lógica para asignar otros roles si fuera necesario
-        }
+        // SIEMPRE asignamos ROLE_USER
+        Role userRole = roleRepository.findByName(ERole.ROLE_USER)
+                .orElseThrow(() -> new RuntimeException("Error: Rol no encontrado."));
+        roles.add(userRole);
+
+        // Si el usuario hubiera enviado otros roles (desde un formulario de admin),
+        // podrías agregarlos aquí, pero para el registro normal, esto es suficiente.
 
         user.setRoles(roles);
         userRepository.save(user);

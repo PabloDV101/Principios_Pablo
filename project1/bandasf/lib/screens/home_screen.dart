@@ -4,6 +4,7 @@ import '../models/band_model.dart';
 import 'login_screen.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 class BandCard extends StatelessWidget {
   final Band banda;
   final String usuarioLogueado;
+  final bool esAdmin;
   final VoidCallback onLikePressed;
   final VoidCallback onEditPressed;
   final VoidCallback onDeletePressed;
@@ -29,12 +31,14 @@ class BandCard extends StatelessWidget {
     required this.onEditPressed,
     required this.onDeletePressed,
     required this.usuarioLogueado,
+    required this.esAdmin,
     required this.onCommentPressed,
   });
 
   @override
   Widget build(BuildContext context) {
     final bool esDuenio = (banda.usernameAutor == usuarioLogueado);
+
     return Card(
       elevation: 3,
       margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
@@ -48,12 +52,18 @@ class BandCard extends StatelessWidget {
               backgroundColor: Colors.indigo[100],
               child: Icon(Icons.person, color: Colors.indigo[800]),
             ),
+            // En tu BandCard.dart, ajusta esta parte:
+            // En BandCard.dart
             title: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
-                    child: Text(banda.nombre,
-                        style: const TextStyle(fontWeight: FontWeight.bold))),
+                  child: Text(
+                    banda.nombre,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8), // Pequeño espacio
                 Text(
                   DateFormat('dd/MM/yy')
                       .format(banda.fechaCreacion ?? DateTime.now()),
@@ -61,26 +71,32 @@ class BandCard extends StatelessWidget {
                 ),
               ],
             ),
-
             subtitle: Text("Por: ${banda.usernameAutor}"),
-            trailing: esDuenio
+            // 1. Definimos las reglas de negocio
+
+// Pásale este booleano desde HomeScreen
+
+            trailing: (esDuenio ||
+                    esAdmin) // Usas la variable pasada por el constructor
                 ? PopupMenuButton<String>(
                     onSelected: (value) {
                       if (value == 'editar') onEditPressed();
                       if (value == 'eliminar') onDeletePressed();
                     },
                     itemBuilder: (context) => [
-                      const PopupMenuItem(
-                          value: 'editar', child: Text("Editar")),
+                      if (esDuenio) // Solo el dueño ve Editar
+                        const PopupMenuItem(
+                            value: 'editar', child: Text("Editar")),
                       const PopupMenuItem(
                           value: 'eliminar', child: Text("Eliminar")),
                     ],
                   )
-                : null, // Si no es dueño, no muestra nada
+                : null,
           ),
 
           // 2. Imagen de la Banda
           ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(0)),
             child: Image.network(
               banda.urlImagen,
               height: 200,
@@ -94,7 +110,7 @@ class BandCard extends StatelessWidget {
             ),
           ),
 
-          // 3. Descripción (Ahora abajo de la imagen)
+          // 3. Descripción
           Padding(
             padding: const EdgeInsets.all(15),
             child: Column(
@@ -116,12 +132,11 @@ class BandCard extends StatelessWidget {
 
           const Divider(height: 1),
 
-          // 4. Barra de Acciones (Likes y Comentarios)
+          // 4. Barra de Acciones
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             child: Row(
               children: [
-                // Botón de Like
                 IconButton(
                   icon:
                       const Icon(Icons.thumb_up_outlined, color: Colors.indigo),
@@ -132,7 +147,6 @@ class BandCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
-                // Botón de Comentarios
                 TextButton.icon(
                   icon: const Icon(Icons.mode_comment_outlined,
                       color: Colors.grey),
@@ -152,6 +166,7 @@ class BandCard extends StatelessWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _esAdmin = false;
   final ApiService _apiService = ApiService();
   final FlutterSecureStorage _storage =
       const FlutterSecureStorage(); // 1. Agrega esto para que _storage exista
@@ -163,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _cargarUsuario();
+    _verificarPermisos(); // Verificamos los permisos del usuario
     _cargarBandas(); // Ahora cargaremos el FEED (todas las bandas)
   }
 
@@ -171,6 +187,20 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _nombreUsuarioLogueado = nombre ?? "Desconocido";
     });
+  }
+
+  Future<void> _verificarPermisos() async {
+    final token = await _storage.read(key: 'jwt_token');
+    if (token != null) {
+      Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+
+      List<dynamic> rolesDinamicos = decodedToken['roles'] ?? [];
+      List<String> roles = rolesDinamicos.cast<String>();
+
+      setState(() {
+        _esAdmin = roles.contains("ROLE_ADMIN");
+      });
+    }
   }
 
   Future<void> _cargarBandas() async {
@@ -243,12 +273,42 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
   }
-@override
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // En tu Scaffold -> AppBar:
       appBar: AppBar(
-        title: const Text("Feed de Bandas"),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Feed de Bandas"),
+            Text(
+              _esAdmin ? "Rol: Administrador" : "Rol: Usuario",
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                  color: Colors.white70),
+            ),
+          ],
+        ),
+        // En los actions del AppBar, puedes agregar este Chip
         actions: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Chip(
+              label: Text(
+                _nombreUsuarioLogueado.isNotEmpty
+                    ? _nombreUsuarioLogueado
+                    : _esAdmin
+                        ? "Admin"
+                        : "Usuario",
+                style: const TextStyle(fontSize: 10, color: Colors.white),
+              ),
+              backgroundColor:
+                  _esAdmin ? Colors.redAccent : Colors.indigoAccent,
+            ),
+          ),
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout)
         ],
       ),
@@ -261,18 +321,29 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemCount: misBandas.length,
                   itemBuilder: (context, index) {
                     final banda = misBandas[index];
+
                     return BandCard(
                       banda: banda,
                       usuarioLogueado: _nombreUsuarioLogueado,
+                      esAdmin:
+                          _esAdmin, // <--- Usa directamente la variable de estado
                       onLikePressed: () => incrementarLike(index),
                       onCommentPressed: () => Navigator.pushNamed(
                           context, '/comments',
                           arguments: banda.id),
                       onEditPressed: () async {
+                        // 1. Navegamos y esperamos el resultado
                         final fueEditado = await Navigator.pushNamed(
                             context, '/edit-band',
                             arguments: banda);
-                        if (fueEditado == true) _cargarBandas();
+
+                        // 2. IMPORTANTE: Validamos que el widget aún exista antes de usar el contexto
+                        if (!mounted) return;
+
+                        // 3. Si se editó con éxito, recargamos
+                        if (fueEditado == true) {
+                          _cargarBandas();
+                        }
                       },
                       onDeletePressed: () => _eliminarBanda(banda.id!),
                     );

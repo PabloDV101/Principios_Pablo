@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'signup_screen.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,6 +11,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final FlutterSecureStorage _storage = const FlutterSecureStorage(); 
   final _userController = TextEditingController();
   final _passController = TextEditingController();
   final _apiService = ApiService();
@@ -18,20 +20,27 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLogin() async {
     setState(() => _isLoading = true);
     
-    bool success = await _apiService.login(
-      _userController.text.trim(), 
-      _passController.text.trim()
-    );
+    String username = _userController.text.trim();
+    String password = _passController.text.trim();
+    
+    // Asumimos que login retorna true si fue exitoso
+    bool success = await _apiService.login(username, password);
 
     setState(() => _isLoading = false);
 
     if (success) {
+      // AQUÍ GUARDAMOS EL USUARIO PARA PODER USARLO EN EL FEED
+      await _storage.write(key: 'username', value: username);
+      
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error: Credenciales incorrectas"), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text("Error: Credenciales incorrectas"), 
+          backgroundColor: Colors.red
+        ),
       );
     }
   }

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io' if (dart.library.js) 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -72,6 +71,7 @@ Future<void> _saveBanda() async {
         nombre: _nombreController.text,
         descripcion: _descController.text,
         urlImagen: imageUrl,
+        usernameAutor: "UsuarioActual", // Aquí podrías usar el nombre de usuario real del autor
       );
 
       await _apiService.createBanda(newBand);

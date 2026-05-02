@@ -82,14 +82,10 @@ public class WebSecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth ->
-                        auth.requestMatchers("/api/auth/**").permitAll()
-                                // RESTRINGIMOS DE NUEVO: Solo usuarios autenticados
-                                .requestMatchers("/api/bandas/**").authenticated()
-                                .anyRequest().authenticated()
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll() // Login/Signup públicos
+                        .requestMatchers("/api/bandas/feed").authenticated() // ¡Debe estar aquí!
+                        .anyRequest().authenticated()
                 );
 
         http.authenticationProvider(authenticationProvider());

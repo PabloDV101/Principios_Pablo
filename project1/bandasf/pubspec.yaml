@@ -35,6 +35,7 @@ dependencies:
   provider: ^6.0.5            # Para manejar el estado (saber si estamos logueados)
   cupertino_icons: ^1.0.8
   image_picker: ^1.1.2
+  intl: ^0.19.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

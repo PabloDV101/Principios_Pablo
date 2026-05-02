@@ -2,7 +2,11 @@ package com.projects.bandas.models;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
+import org.hibernate.annotations.Formula;
+
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "bandas")
@@ -35,6 +39,22 @@ public class Banda {
     }
 
     public Banda() {}
+
+    @OneToMany(mappedBy = "banda", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Comentario> comentarios = new ArrayList<>();
+
+    @OneToMany(mappedBy = "banda", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Reaccion> reacciones = new ArrayList<>();
+
+    @Formula("(SELECT count(*) FROM reacciones r WHERE r.banda_id = id AND r.tipo = 'LIKE')")
+    private int likesCount;
+
+    @Formula("(SELECT count(*) FROM reacciones r WHERE r.banda_id = id AND r.tipo = 'DISLIKE')")
+    private int dislikesCount;
+
+    // ¡Solo necesitas getters! (No setters)
+    public int getLikesCount() { return likesCount; }
+    public int getDislikesCount() { return dislikesCount; }
 
     // Getters y Setters
     public Long getId() { return id; }

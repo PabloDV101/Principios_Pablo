@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/band_model.dart';
+import '../models/comentario_model.dart';
 import 'package:flutter/foundation.dart';
 
 class ApiService {
@@ -52,12 +53,6 @@ class ApiService {
 Future<void> createBanda(Band banda) async {
   final token = await _storage.read(key: 'jwt_token');
   
-  // ¡Esto nos dirá la verdad!
-  print("--- DEBUG TOKEN ---");
-  print("Token recuperado: $token");
-  print("URL: $baseUrl/bandas");
-  print("Headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}");
-  print("-------------------");
 
   if (token == null) throw Exception("No hay sesión activa");
   
@@ -76,26 +71,137 @@ Future<void> createBanda(Band banda) async {
       throw Exception('Error al crear banda: ${response.statusCode} - ${response.body}');
     }
   }
+  // En tu ApiService.dart
+Future<void> reaccionar(int bandaId, String tipo) async {
+  final token = await _storage.read(key: 'jwt_token');
+  
+  // URL: /api/bandas/{bandaId}/reaccionar?tipo=LIKE
+  final url = Uri.parse('$baseUrl/bandas/$bandaId/reaccionar?tipo=$tipo');
 
-  Future<List<Band>> getMyBands() async {
-    final token = await _storage.read(key: 'jwt_token');
-    if (token == null) throw Exception("No hay sesión activa");
+  final response = await http.post(
+    url,
+    headers: {
+      "Authorization": "Bearer $token",
+      "Content-Type": "application/json",
+    },
+  );
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/bandas/mis-bandas'),
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer $token",
-      },
-    );
-
-    if (response.statusCode == 200) {
-      List<dynamic> body = jsonDecode(response.body);
-      return body.map((item) => Band.fromJson(item)).toList();
-    } else {
-      throw Exception("Error al cargar bandas: ${response.statusCode}");
-    }
+  if (response.statusCode != 200) {
+    throw Exception("Error al reaccionar: ${response.statusCode}");
   }
+}
+
+// En tu archivo services/api_service.dart
+
+Future<List<Comentario>> getComentarios(int bandaId) async {
+  final token = await _storage.read(key: 'jwt_token');
+  
+  // Llamada al endpoint que definimos en InteractionController
+  final response = await http.get(
+    Uri.parse('$baseUrl/bandas/$bandaId/comentarios'),
+    headers: {
+      "Authorization": "Bearer $token",
+      "Content-Type": "application/json",
+    },
+  );
+
+  if (response.statusCode == 200) {
+    List<dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
+    List<Comentario> comentarios = body.map((dynamic item) => Comentario.fromJson(item)).toList();
+    
+    return comentarios;
+  } else {
+    throw Exception("Error al cargar comentarios: ${response.statusCode}");
+  }
+}
+
+Future<List<Band>> getMyBands() async {
+  final token = await _storage.read(key: 'jwt_token');
+  if (token == null) throw Exception("No hay sesión activa");
+
+  final response = await http.get(
+    Uri.parse('$baseUrl/bandas/mis-bandas'),
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer $token",
+    },
+  );
+
+  if (response.statusCode == 200) {
+    List<dynamic> list = jsonDecode(response.body);
+    return list.map((e) => Band.fromJson(e)).toList();
+  } else {
+    return [];
+  }
+}
+
+Future<List<Band>> getFeed() async {
+  final token = await _storage.read(key: 'jwt_token');
+  
+  // ¡DEBEMOS DEPURAR ESTO!
+
+
+  if (token == null) {
+
+    return [];
+  }
+
+  final response = await http.get(
+    Uri.parse('$baseUrl/bandas/feed'), 
+    headers: {
+      "Authorization": "Bearer $token", // Asegúrate de que el formato sea "Bearer TOKEN"
+      "Content-Type": "application/json",
+    },
+  );
+  if (response.statusCode == 200) {
+    List<dynamic> list = jsonDecode(response.body);
+    return list.map((e) => Band.fromJson(e)).toList();
+  } else {
+
+    return [];
+  }
+}
+
+Future<void> eliminarBanda(int bandaId) async {
+  final token = await _storage.read(key: 'jwt_token');
+  
+  if (token == null) throw Exception("No hay sesión activa");
+
+  final response = await http.delete(
+    Uri.parse('$baseUrl/bandas/eliminar/$bandaId'),
+    headers: {
+      "Authorization": "Bearer $token",
+      "Content-Type": "application/json",
+    },
+  );
+
+  if (response.statusCode != 200) {
+    // Si el servidor devuelve un error, lanzamos excepción
+    throw Exception("Error al eliminar la banda: ${response.statusCode} - ${response.body}");
+  }
+}
+Future<void> editarBanda(int id, Band banda) async {
+  final token = await _storage.read(key: 'jwt_token');
+  await http.post(
+    Uri.parse('$baseUrl/bandas/editar/$id'),
+    headers: {"Authorization": "Bearer $token", "Content-Type": "application/json"},
+    body: jsonEncode(banda.toJson()),
+  );
+}
+
+Future<void> publicarComentario(int bandaId, String texto) async {
+  final token = await _storage.read(key: 'jwt_token');
+  
+  await http.post(
+    Uri.parse('$baseUrl/bandas/$bandaId/comentar'),
+    headers: {
+  "Authorization": "Bearer $token",
+  "Content-Type": "application/json", // ¡Esto es vital!
+},
+body: jsonEncode({"texto": texto}),
+  );
+}
+
 
   // --- UTILS ---
 

@@ -1,0 +1,256 @@
+\documentclass[12pt, letterpaper]{article}
+
+% =========================================================
+% CONFIGURACIÓN DE PAQUETES
+% =========================================================
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{titlesec}
+
+% =========================================================
+% CONFIGURACIÓN DE COLORES Y LISTINGS (JAVA)
+% =========================================================
+\definecolor{javapurple}{rgb}{0.5,0,0.35}
+\definecolor{javagreen}{rgb}{0.25,0.5,0.35}
+\definecolor{javablue}{rgb}{0.16,0,1}
+\definecolor{backgroundgray}{rgb}{0.98,0.98,0.98}
+
+\lstset{
+    language=Java,
+    backgroundcolor=\color{backgroundgray},
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{javapurple}\bfseries,
+    stringstyle=\color{javablue},
+    commentstyle=\color{javagreen},
+    stepnumber=1,
+    numbersep=5pt,
+    numberstyle=\tiny\color{gray},
+    breaklines=true,
+    showstringspaces=false,
+    tabsize=2,
+    captionpos=b, % Caption al final del bloque
+    frame=lines % Líneas arriba y abajo del código
+}
+
+% =========================================================
+% CONFIGURACIÓN DE ENCABEZADO Y PIE
+% =========================================================
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[L]{\footnotesize José Pablo Demeneghi Victoria}
+\fancyfoot[R]{\footnotesize Página \thepage\ de \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0.5pt}
+
+\begin{document}
+
+% =========================================================
+% PORTADA (DISEÑO RENOVADO)
+% =========================================================
+\begin{titlepage}
+    \centering
+    \includegraphics[width=4cm]{logo_uv.png} \\[0.5cm]
+    
+    {\large \textsc{Universidad Veracruzana}} \\
+    \vspace{0.2cm}
+    {\small FACULTAD DE NEGOCIOS Y TECNOLOGÍAS} \\
+    {\small LICENCIATURA EN INGENIERÍA DE SOFTWARE} \\
+    
+    \vspace{2.5cm}
+    
+    \hrule height 1.5pt
+    \vspace{0.4cm}
+    {\huge \textbf{REPORTE DE PROYECTO}} \\
+    \vspace{0.2cm}
+    {\large \textit{Sistema de Gestión de Bandas (Backend REST)}}
+    \vspace{0.4cm}
+    \hrule height 0.5pt
+    
+    \vspace{2.5cm}
+    
+    \begin{minipage}{0.4\textwidth}
+        \begin{flushleft} \large
+            \textbf{Estudiante:}\\
+            José Pablo Demeneghi Victoria
+        \end{flushleft}
+    \end{minipage}
+    \begin{minipage}{0.4\textwidth}
+        \begin{flushright} \large
+            \textbf{Experiencia Educativa:}\\
+            Principios de Diseño
+        \end{flushright}
+    \end{minipage}
+    
+    \vspace{3cm}
+    
+    {\large \textbf{Docente:}} \\
+    {\large Adolfo Centeno Téllez} \\
+    
+    \vfill
+    
+    \hrule
+    \vspace{0.2cm}
+    {\small Ixtaczoquitlán, Veracruz \hfill Mayo de 2026}
+\end{titlepage}
+
+\newpage
+
+% =========================================================
+% CUERPO DEL DOCUMENTO
+% =========================================================
+
+\section{Introducción}
+El "Sistema de Gestión de Bandas" es una plataforma integral diseñada para la interacción entre entusiastas de la música, permitiendo la gestión de perfiles de bandas, sistemas de reacciones (likes/dislikes) y foros de comentarios en tiempo real. 
+
+Arquitectónicamente, el proyecto se rige bajo el principio de \textbf{Separación de Responsabilidades (SoC)}, dividiéndose en tres capas fundamentales:
+\begin{enumerate}
+    \item \textbf{Capa de Persistencia:} Basada en PostgreSQL y desplegada en Aiven, garantizando la integridad de los datos.
+    \item \textbf{Capa de Lógica de Negocio (Backend):} Desarrollada con Spring Boot, encargada de centralizar las reglas de negocio y la seguridad mediante JWT.
+    \item \textbf{Capa de Presentación:} Una aplicación móvil y web construida en Flutter que consume los servicios REST del backend.
+\end{enumerate}
+
+Para asegurar que el backend no sea simplemente un conjunto de funciones aisladas, sino un sistema mantenible y testeable, se han implementado patrones de diseño del \textit{Gang of Four}. Estos patrones permiten resolver problemas recurrentes de creación, estructura y comunicación, elevando la calidad técnica del producto final.
+
+
+% =========================================================
+% PATRONES CREACIONALES
+% =========================================================
+\section{Patrones Creacionales}
+Los patrones creacionales abstraen el proceso de instanciación, ocultando cómo los objetos se crean y se combinan.
+
+\subsection{Builder (Constructor)}
+\textbf{Descripción:} Este patrón permite construir objetos complejos paso a paso. Es ideal cuando un objeto tiene muchos atributos opcionales o requiere una configuración detallada antes de ser utilizado.
+
+\textbf{Aplicación:} En el proyecto, se utiliza para generar los tokens JWT. Dado que un token requiere claims personalizados (como roles), fechas de expiración y algoritmos de firma, el \textit{Builder} de la librería \texttt{io.jsonwebtoken} permite configurar el token de forma fluida y segura.
+
+\begin{lstlisting}[language=Java, caption=Implementación de Builder para la generación de JWT]
+public String generateJwtToken(Authentication authentication) {
+    UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
+    
+    // El Builder permite configurar el token de forma declarativa
+    return Jwts.builder()
+            .setSubject(userPrincipal.getUsername())
+            .claim("roles", roles)
+            .setIssuedAt(new Date())
+            .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+            .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+            .compact(); // Finaliza la construccion del String inmutable
+}
+\end{lstlisting}
+
+\subsection{Singleton (Instancia Única)}
+\textbf{Descripción:} Garantiza que una clase tenga una única instancia y proporciona un punto de acceso global a ella.
+
+\textbf{Aplicación:} Spring Boot utiliza este patrón por defecto para todos sus \textit{Beans}. Componentes como \texttt{JwtUtils} o \texttt{SecurityUtils} se instancian una sola vez al arrancar el servidor. Esto es crítico para el rendimiento, ya que evita crear miles de objetos idénticos que saturen la memoria RAM durante las peticiones concurrentes.
+
+\begin{lstlisting}[language=Java, caption=Singleton gestionado por el contenedor de Spring (@Component)]
+@Component
+public class JwtUtils {
+    @Value("${pablo.app.jwtSecret}")
+    private String jwtSecret;
+
+    // Solo existe una instancia de esta clase para toda la aplicacion
+    public boolean validateJwtToken(String authToken) { ... }
+}
+\end{lstlisting}
+
+\subsection{Factory Method (Método de Fábrica)}
+\textbf{Descripción:} Proporciona una interfaz para crear objetos en una superclase, permitiendo que las subclases o métodos estáticos decidan qué clase instanciar.
+
+\textbf{Aplicación:} Se aplicó en la clase \texttt{UserDetailsImpl}. El sistema recibe una entidad \texttt{User} de la base de datos y necesita transformarla en un objeto compatible con Spring Security. El método \texttt{build()} actúa como una fábrica que encapsula la lógica de conversión de roles.
+
+\begin{lstlisting}[language=Java, caption=Factory Method para transformar entidades de usuario]
+public static UserDetailsImpl build(User user) {
+    List<GrantedAuthority> authorities = user.getRoles().stream()
+            .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+            .collect(Collectors.toList());
+
+    return new UserDetailsImpl(
+            user.getId(), user.getUsername(), 
+            user.getEmail(), user.getPassword(), 
+            authorities);
+}
+\end{lstlisting}
+
+\newpage
+
+% =========================================================
+% PATRONES ESTRUCTURALES
+% =========================================================
+\section{Patrones Estructurales}
+Estos patrones se ocupan de cómo las clases y objetos se componen para formar estructuras más grandes.
+
+\subsection{Facade (Fachada)}
+\textbf{Descripción:} Proporciona una interfaz simplificada a un subsistema complejo de clases, librerías o frameworks.
+
+\textbf{Aplicación:} \texttt{AuthController} es la fachada del sistema de seguridad. Para que el usuario inicie sesión, el cliente solo llama a un método, pero internamente la fachada interactúa con el \texttt{AuthenticationManager}, el \texttt{SecurityContext} y el generador de tokens, ocultando esa complejidad al desarrollador del frontend.
+
+\begin{lstlisting}[language=Java, caption=Patrón Facade simplificando el proceso de Login]
+@PostMapping("/signin")
+public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+    // Interaccion con subsistemas complejos de seguridad
+    Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+    String jwt = jwtUtils.generateJwtToken(authentication);
+
+    return ResponseEntity.ok(new JwtResponse(jwt, ...));
+}
+\end{lstlisting}
+
+\subsection{Proxy (Representante)}
+\textbf{Descripción:} Proporciona un objeto sustituto para controlar el acceso al objeto original.
+
+\textbf{Aplicación:} Se utiliza mediante la anotación \texttt{@PreAuthorize}. Spring crea un \textit{Proxy} alrededor de los controladores. Cuando llega una petición, el Proxy intercepta la llamada, verifica si el usuario tiene el rol adecuado y, solo si es así, permite que la petición llegue al método real del controlador.
+
+\begin{lstlisting}[language=Java, caption=Proxy interceptor de seguridad para roles]
+@DeleteMapping("/{id}")
+@PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+public ResponseEntity<?> eliminarBanda(@PathVariable Long id) {
+    // El proxy valida el acceso antes de ejecutar este codigo
+    bandaRepository.deleteById(id);
+    return ResponseEntity.ok().build();
+}
+\end{lstlisting}
+
+\newpage
+
+% =========================================================
+% PATRONES DE COMPORTAMIENTO
+% =========================================================
+\section{Patrones de Comportamiento}
+Se centran en los algoritmos y la asignación de responsabilidades entre objetos.
+
+\subsection{Chain of Responsibility (Cadena de Responsabilidad)}
+\textbf{Descripción:} Permite pasar solicitudes a lo largo de una cadena de manejadores. Al recibir una solicitud, cada manejador decide si la procesa o si la pasa al siguiente.
+
+\textbf{Aplicación:} Es el pilar del flujo HTTP en este proyecto. Las peticiones pasan por una cadena de filtros (\texttt{SimpleCorsFilter} $\rightarrow$ \texttt{AuthTokenFilter} $\rightarrow$ \texttt{DispatcherServlet}). Cada filtro valida una parte (CORS, Token, Rutas) y decide si el flujo continúa.
+
+\begin{lstlisting}[language=Java, caption=Eslabón de la cadena encargado de la validación del Token]
+@Override
+protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) {
+    try {
+        String jwt = parseJwt(request);
+        if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
+            // Logica de validacion...
+        }
+    } catch (Exception e) {
+        logger.error("Error de autenticacion: {}", e);
+    }
+    // Paso de la peticion al siguiente eslabon de la cadena
+    filterChain.doFilter(request, response);
+}
+\end{lstlisting}
+
+\section{Conclusión}
+El uso de patrones de diseño en el Sistema de Gestión de Bandas ha permitido pasar de un código funcional a un sistema de ingeniería profesional. La implementación de \textbf{Builder} y \textbf{Singleton} optimizó el manejo de recursos, mientras que \textbf{Facade}, \textbf{Proxy} y \textbf{Chain of Responsibility} blindaron la seguridad del sistema sin comprometer la limpieza del código. Esta estructura no solo facilita el mantenimiento actual, sino que garantiza que el sistema pueda escalar y adaptarse a futuros requerimientos con un impacto mínimo en el código existente.
+
+\end{document}

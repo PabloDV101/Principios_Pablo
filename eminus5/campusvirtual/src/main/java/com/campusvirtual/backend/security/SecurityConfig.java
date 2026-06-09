@@ -12,8 +12,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.Arrays;
 
-import java.util.List;
+
 
 @Configuration
 @EnableWebSecurity
@@ -25,14 +26,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Reglas CORS explícitas
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Login y Registro públicos
-                        .requestMatchers("/api/usuarios/login", "/api/usuarios/registro").permitAll()
-                        // 2. Catálogo de cursos público (solo lectura)
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // 👇 AGREGA "/error" AQUÍ 👇
+                        .requestMatchers("/api/usuarios/login", "/api/usuarios/registro", "/error").permitAll()
+
                         .requestMatchers(HttpMethod.GET, "/api/cursos").permitAll()
-                        // 3. Todo lo demás, bloqueado sin Token
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -41,13 +43,20 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // Le decimos a Spring Security que acepte peticiones desde el puerto de Flutter
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*")); // En producción, cambiar "*" por la URL de tu frontend
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
+
+        // Permite a Flutter Web conectarse desde cualquier puerto (localhost:XXXX)
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+
+        // Permite los métodos que usas, ¡ESPECIALMENTE OPTIONS!
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        // 👇 ESTA LÍNEA ES VITAL: Permite que Flutter envíe el Token en el header
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
+
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

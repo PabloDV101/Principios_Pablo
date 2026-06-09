@@ -8,7 +8,7 @@ import 'package:flutter/foundation.dart';
 class ApiService {
   // NOTA: Si pruebas en Chrome, localhost es correcto.
   // Si pruebas en Android físico, usa tu IP local (ej: 192.168.1.XX)
-  final String baseUrl = "http://localhost:8080/api";
+  final String baseUrl = "https://pablo-bandas-latest-1.onrender.com/api";
   final _storage = const FlutterSecureStorage();
 
   // --- AUTENTICACIÓN ---

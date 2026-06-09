@@ -6,8 +6,10 @@ import '../screens/curso_overview_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/crear_curso_screen.dart';
 import '../../../data/services/api_service.dart';
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../tabs/perfil_tab.dart';
+import '../screens/main_screen.dart';
+
 
 
 class InicioTab extends StatefulWidget {
@@ -29,6 +31,7 @@ class _InicioTabState extends State<InicioTab> {
   final ApiService _apiService = ApiService();
   late Future<List<Curso>> _futureCursos;
 
+
   // --- BLOQUE A PEGAR AL INICIO DE LA CLASE STATE ---
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -40,10 +43,55 @@ class _InicioTabState extends State<InicioTab> {
   }
   // ----------------------------------------------------
 
-  @override
-  void initState() {
-    super.initState();
-    _cargarCursos();
+ // En tu InicioTab.dart
+@override
+void initState() {
+  _futureCursos = _cargarCatalogoConFavoritos();
+  _futureCursos = _apiService.obtenerCatalogo();
+  super.initState();
+  // Aquí es donde cargamos todo al abrir la app
+  _sincronizarFavoritos();
+}
+Future<List<Curso>> _cargarCatalogoConFavoritos() async {
+    // 1. Descargamos el catálogo completo
+    final catalogo = await _apiService.obtenerCatalogo();
+
+    // 2. Si es invitado, devolvemos el catálogo tal cual (todo gris)
+    if (widget.usuarioActivo == null) return catalogo;
+
+    // 3. Si hay usuario logueado, descargamos sus IDs favoritos de la base de datos
+    final misDeseosIds = await _apiService.obtenerIdsDeseos(widget.usuarioActivo!.id);
+
+    // 4. Actualizamos la memoria RAM del usuario con la verdad del servidor
+    widget.usuarioActivo!.cursosDeseados = misDeseosIds;
+
+    // 5. Cruzamos los datos: Marcamos los corazones correctos ANTES de que se dibuje la UI
+    for (var curso in catalogo) {
+      curso.isFavorito = misDeseosIds.contains(curso.id);
+    }
+
+    // 6. Devolvemos la lista perfectamente sincronizada al FutureBuilder
+    return catalogo;
+  }
+
+Future<void> _sincronizarFavoritos() async {
+    // 1. Protección inicial: Si el usuario es nulo, no hacemos nada y salimos.
+    if (widget.usuarioActivo == null) return;
+
+    final catalogo = await _apiService.obtenerCatalogo();
+    
+    // 2. LA CORRECCIÓN: Agregamos el "!" antes del ".id"
+    // Esto le asegura a Dart que la variable tiene datos.
+    final misDeseosIds = await _apiService.obtenerIdsDeseos(widget.usuarioActivo!.id);
+
+    if (!mounted) return;
+
+    setState(() {
+      for (var curso in catalogo) {
+        curso.isFavorito = misDeseosIds.contains(curso.id);
+      }
+
+    });
   }
 
   void _cargarCursos() {
@@ -51,11 +99,11 @@ class _InicioTabState extends State<InicioTab> {
       _futureCursos = _apiService.obtenerCatalogo();
     });
   }
-
 @override
   Widget build(BuildContext context) {
-    // ESTA ES LA LÍNEA QUE FALTABA PARA ARREGLAR EL ERROR 'esInvitado'
     final bool esInvitado = widget.usuarioActivo == null;
+    // Variable para saber si estamos buscando (y así ocultar el carrusel)
+    final bool estaBuscando = _searchQuery.isNotEmpty;
 
     return SafeArea(
       child: FutureBuilder<List<Curso>>(
@@ -81,7 +129,11 @@ class _InicioTabState extends State<InicioTab> {
           }
 
           final todosLosCursos = snapshot.data ?? [];
+         
           
+          // Tomamos los primeros 5 cursos (o los que quieras) para el carrusel
+          final cursosDestacados = todosLosCursos.take(5).toList(); 
+
           final Set<String> etiquetasUnicas = {'Todos'};
           for (var curso in todosLosCursos) {
             etiquetasUnicas.addAll(curso.etiquetas);
@@ -112,80 +164,148 @@ class _InicioTabState extends State<InicioTab> {
 
           return CustomScrollView(
             slivers: [
+              // 1. NUEVA BARRA SUPERIOR COMPACTA
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0, bottom: 8.0),
+                  child: Row(
+                    children: [
+                      // Logo y Nombre
+                      const Icon(Icons.school, color: Color(0xFF0D47A1), size: 26),
+                      const SizedBox(width: 4),
+                      // Ocultamos la palabra 'Campus' si la pantalla es muy chica para que no choque
+                      if (MediaQuery.of(context).size.width > 360)
+                        const Text('Campus', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black, letterSpacing: -0.5)),
+                      const SizedBox(width: 12),
+                      
+                      // Barra de Búsqueda (Expanded para que tome el espacio del centro)
+                      Expanded(
+                        child: SizedBox(
+                          height: 40,
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+                            decoration: InputDecoration(
+                              hintText: 'Buscar...',
+                              prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
+                              suffixIcon: _searchQuery.isNotEmpty 
+                                  ? IconButton(icon: const Icon(Icons.clear, color: Colors.grey, size: 18), onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); }) 
+                                  : null,
+                              filled: true,
+                              fillColor: Colors.grey.shade100,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Botones de Acción
+                      if (esInvitado)
+                        TextButton(
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())), 
+                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: Size.zero),
+                          child: const Text('Entrar', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)))
+                        )
+                      else
+                        Row(
+                          children: [
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(Icons.add_box_outlined, color: Colors.black, size: 26),
+                              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CrearCursoScreen(usuarioActivo: widget.usuarioActivo!))).then((_) => _cargarCursos()),
+                            ),
+                            const SizedBox(width: 12),
+                            PopupMenuButton<String>(
+                              offset: const Offset(0, 45),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              onSelected: (value) async {
+                                if (value == 'perfil') {
+                                  // AHORA LLEVA A LA VISTA DEL PERFIL (PerfilTab)
+                                  Navigator.push(context, MaterialPageRoute(
+                                    builder: (_) => Scaffold(
+                                      appBar: AppBar(
+                                        backgroundColor: Colors.white, 
+                                        foregroundColor: Colors.black, 
+                                        elevation: 0
+                                      ),
+                                      body: PerfilTab(
+                                        usuarioActivo: widget.usuarioActivo!,
+                                        onLogout: () async {
+                                          await ApiService().logout();
+                                          if (context.mounted) {
+                                            Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const MainScreen(usuarioActivo: null)), (route) => false);
+                                          }
+                                        }
+                                      ),
+                                    )
+                                  )).then((_) => setState(() {})); 
+                                  
+                                } else if (value == 'logout') {
+                                  await ApiService().logout();
+                                  if (context.mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const MainScreen(usuarioActivo: null)), (route) => false);
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(value: 'perfil', child: Row(children: [Icon(Icons.person, color: Colors.black), SizedBox(width: 12), Text('Mi perfil', style: TextStyle(fontWeight: FontWeight.bold))])),
+                                const PopupMenuDivider(),
+                                const PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, color: Colors.red), SizedBox(width: 12), Text('Cerrar sesión', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))])),
+                              ],
+                              child: CircleAvatar(
+                                radius: 14,
+                                backgroundColor: const Color(0xFF0D47A1),
+                                backgroundImage: (widget.usuarioActivo!.fotoUrl != null && widget.usuarioActivo!.fotoUrl!.isNotEmpty) ? NetworkImage(widget.usuarioActivo!.fotoUrl!) : null,
+                                child: (widget.usuarioActivo!.fotoUrl == null || widget.usuarioActivo!.fotoUrl!.isEmpty) ? Text(widget.usuarioActivo!.nombre.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)) : null,
+                              ),
+                            ),
+                          ],
+                        )
+                    ],
+                  ),
+                ),
+              ),
+              
+              // 2. SALUDO Y CARRUSEL (Se ocultan si el usuario está buscando algo)
+              // 2. SALUDO Y CARRUSEL (Se ocultan si el usuario está buscando algo)
+              if (!estaBuscando) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 16.0, bottom: 20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          esInvitado ? 'Hola, Invitado' : 'Hola, ${widget.usuarioActivo!.nombre.split(' ')[0]}', 
+                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black)
+                        ),
+                        const SizedBox(height: 4),
+                        Text('Descubre tu próximo curso', style: TextStyle(fontSize: 15, color: Colors.grey[600])),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // AQUÍ MANDAMOS A LLAMAR TU NUEVO CARRUSEL INFINITO
+                SliverToBoxAdapter(
+                  child: _CarruselInfinito(
+                    cursos: cursosDestacados, 
+                    usuarioActivo: widget.usuarioActivo,
+                  ),
+                ),
+                
+                const SliverToBoxAdapter(child: SizedBox(height: 32)), // Espaciador
+              ],
+              
+              // 3. SECCIÓN DE CATEGORÍAS (Se mueve hacia arriba si hay búsqueda)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.school, color: Color(0xFF0D47A1), size: 28),
-                              SizedBox(width: 8),
-                              Text('Campus', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black, letterSpacing: -0.5)),
-                            ],
-                          ),
-                          if (esInvitado)
-                            Row(
-                              children: [
-                                TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())), style: TextButton.styleFrom(foregroundColor: Colors.black), child: const Text('Entrar', style: TextStyle(fontWeight: FontWeight.bold))),
-                                OutlinedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())), style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF0D47A1), side: const BorderSide(color: Color(0xFF0D47A1)), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), padding: const EdgeInsets.symmetric(horizontal: 16)), child: const Text('Únete gratis', style: TextStyle(fontWeight: FontWeight.bold)))
-                              ],
-                            )
-                          else
-                            Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.add_box_outlined, color: Colors.black, size: 28),
-                                  tooltip: 'Crear un nuevo curso',
-                                  onPressed: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (_) => CrearCursoScreen(usuarioActivo: widget.usuarioActivo!)))
-                                      .then((_) => _cargarCursos());
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                CircleAvatar(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, child: Text(widget.usuarioActivo!.nombre.substring(0, 1))),
-                              ],
-                            )
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      const Text('Explorar', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
-                      const SizedBox(height: 4),
-                      Text('Descubre tu próximo curso', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-                      const SizedBox(height: 24),
-                      
-                      TextField(
-                        controller: _searchController,
-                        onChanged: (value) {
-                          setState(() {
-                            _searchQuery = value.toLowerCase(); 
-                          });
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Buscar cursos, habilidades...', 
-                          prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                          suffixIcon: _searchQuery.isNotEmpty 
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, color: Colors.grey),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() => _searchQuery = '');
-                                  },
-                                ) 
-                              : null,
-                          filled: true, 
-                          fillColor: Colors.white, 
-                          contentPadding: EdgeInsets.zero, 
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)), 
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300))
-                        )
-                      ),
-                      
-                      const SizedBox(height: 24),
+                      if (estaBuscando) const SizedBox(height: 16),
                       const Text('Categorías', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
                       const SizedBox(height: 12),
                     ],
@@ -193,6 +313,7 @@ class _InicioTabState extends State<InicioTab> {
                 ),
               ),
               
+              // CHIPS DE ETIQUETAS
               SliverToBoxAdapter(
                 child: SizedBox(
                   height: 40,
@@ -219,10 +340,11 @@ class _InicioTabState extends State<InicioTab> {
                 ),
               ),
               
+              // RESULTADOS DE LOS CURSOS (Mismo de antes)
               SliverPadding(
                 padding: const EdgeInsets.only(top: 24.0, bottom: 20.0),
                 sliver: cursosPorCategoria.isEmpty 
-                  ? SliverToBoxAdapter(child: Center(child: Padding(padding: const EdgeInsets.all(40.0), child: Text('No se encontraron cursos con tu búsqueda.', style: TextStyle(color: Colors.grey[500], fontSize: 16)))))
+                  ? SliverToBoxAdapter(child: Center(child: Padding(padding: const EdgeInsets.all(40.0), child: Text('No se encontraron cursos.', style: TextStyle(color: Colors.grey[500], fontSize: 16)))))
                   : SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
@@ -234,14 +356,7 @@ class _InicioTabState extends State<InicioTab> {
                             children: [
                               Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                                child: Text(
-                                  categoria,
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
+                                child: Text(categoria, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
                               ),
                               SizedBox(
                                 height: 260, 
@@ -250,10 +365,7 @@ class _InicioTabState extends State<InicioTab> {
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
                                   itemCount: cursosDeEstaCategoria.length,
                                   itemBuilder: (context, idx) {
-                                    return _CursoMiniCard(
-                                      curso: cursosDeEstaCategoria[idx],
-                                      usuarioActivo: widget.usuarioActivo,
-                                    );
+                                    return _CursoMiniCard(curso: cursosDeEstaCategoria[idx], usuarioActivo: widget.usuarioActivo);
                                   },
                                 ),
                               ),
@@ -298,11 +410,11 @@ final ApiService _apiService = ApiService(); // Instancia arriba
 
     // Actualizamos la UI inmediatamente para que se sienta rápido
     setState(() {
-      final lista = widget.usuarioActivo!.listaDeseosIds;
-      if (lista.contains(widget.curso.id)) {
-        lista.remove(widget.curso.id);
+      final lista = widget.usuarioActivo!.cursosDeseados;
+      if (lista?.contains(widget.curso.id) == true) {
+        lista?.remove(widget.curso.id);
       } else {
-        lista.add(widget.curso.id);
+        lista?.add(widget.curso.id);
       }
     });
 
@@ -312,7 +424,7 @@ final ApiService _apiService = ApiService(); // Instancia arriba
 
   @override
   Widget build(BuildContext context) {
-    final esFavorito = widget.usuarioActivo != null && widget.usuarioActivo!.listaDeseosIds.contains(widget.curso.id);
+    final esFavorito = widget.usuarioActivo != null && widget.usuarioActivo!.cursosDeseados?.contains(widget.curso.id) == true;
 
     return GestureDetector(
       onTap: () {
@@ -421,69 +533,66 @@ class _CursoMiniCard extends StatefulWidget {
 
 class _CursoMiniCardState extends State<_CursoMiniCard> {
   final ApiService _apiService = ApiService();
-  bool _esFavorito = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // Verificamos si el curso ya está en la lista de deseos del usuario
-    if (widget.usuarioActivo != null) {
-      _esFavorito = widget.usuarioActivo!.listaDeseosIds.contains(widget.curso.id);
+  // 1. ESTO ES LO QUE OBLIGA AL CORAZÓN A SER ROJO
+  bool get _esFavorito {
+    if (widget.usuarioActivo != null && widget.usuarioActivo!.cursosDeseados != null) {
+      // Si el ID del curso está en los deseos del usuario, es true sí o sí
+      return widget.usuarioActivo!.cursosDeseados!.contains(widget.curso.id);
     }
+    return widget.curso.isFavorito;
   }
 
-void _toggleFavorito() async {
+  void _toggleFavorito() async {
     if (widget.usuarioActivo == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Inicia sesión para guardar cursos')));
       return;
     }
 
-    setState(() => _esFavorito = !_esFavorito);
+    // Guardamos el estado anterior por si hay error
+    final bool eraFavorito = _esFavorito;
 
-    // 1. ACTUALIZAMOS LA MEMORIA RAM (Evitando duplicados por seguridad)
-    if (_esFavorito) {
-      if (!(widget.usuarioActivo!.listaDeseosIds.contains(widget.curso.id))) {
-        widget.usuarioActivo!.listaDeseosIds.add(widget.curso.id);
+    // 2. CAMBIO INMEDIATO EN LA UI Y LA MEMORIA
+    setState(() {
+      if (eraFavorito) {
+        widget.usuarioActivo!.cursosDeseados?.remove(widget.curso.id);
+        widget.curso.isFavorito = false;
+      } else {
+        widget.usuarioActivo!.cursosDeseados?.add(widget.curso.id);
+        widget.curso.isFavorito = true;
       }
-    } else {
-      widget.usuarioActivo!.listaDeseosIds.remove(widget.curso.id);
-    }
+    });
 
-    // 2. ACTUALIZAMOS EL DISCO LOCAL (SharedPreferences)
-    // Esto asegura que al hacer Hot Restart se mantengan los cambios
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('usuario_data', json.encode(widget.usuarioActivo!.toJson()));
-
-    // 3. ACTUALIZAMOS EL SERVIDOR
+    // 3. Petición silenciosa al servidor
     final exito = await _apiService.toggleDeseos(widget.usuarioActivo!.id, widget.curso.id);
     
+    // 4. Si el servidor falla, regresamos el corazón a su color anterior
     if (!exito) {
-      // Si el servidor falla, deshacemos todos los cambios (RAM, Pantalla y Disco)
-      setState(() => _esFavorito = !_esFavorito);
-      
-      if (_esFavorito) {
-        widget.usuarioActivo!.listaDeseosIds.add(widget.curso.id);
-      } else {
-        widget.usuarioActivo!.listaDeseosIds.remove(widget.curso.id);
-      }
-      
-      // Revertimos el disco local
-      await prefs.setString('usuario_data', json.encode(widget.usuarioActivo!.toJson())); 
-      
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error de conexión con el servidor')));
+      setState(() {
+        if (eraFavorito) {
+          widget.usuarioActivo!.cursosDeseados?.add(widget.curso.id);
+          widget.curso.isFavorito = true;
+        } else {
+          widget.usuarioActivo!.cursosDeseados?.remove(widget.curso.id);
+          widget.curso.isFavorito = false;
+        }
+      });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al conectar')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Ajusta 'estudiantes' según el nombre que tenga tu lista en la clase Curso (ej. inscritos, alumnosIds)
     final numEstudiantes = widget.curso.estudiantesLista.length;
 
     return GestureDetector(
       onTap: () {
         Navigator.push(context, MaterialPageRoute(
           builder: (context) => CursoOverviewScreen(curso: widget.curso, usuarioActivo: widget.usuarioActivo),
-        ));
+        )).then((_) {
+          // Si el usuario cambia el corazón en la pantalla de detalles, recargamos la tarjeta al volver
+          if (mounted) setState(() {}); 
+        });
       },
       child: Container(
         width: 240,
@@ -498,7 +607,6 @@ void _toggleFavorito() async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. STACK PARA LA IMAGEN Y EL CORAZÓN
             Stack(
               children: [
                 Container(
@@ -517,7 +625,6 @@ void _toggleFavorito() async {
                     ),
                   ),
                 ),
-                // Botón de Corazón (Favoritos) en la esquina superior derecha
                 Positioned(
                   top: 8,
                   right: 8,
@@ -526,6 +633,7 @@ void _toggleFavorito() async {
                     radius: 16,
                     child: IconButton(
                       padding: EdgeInsets.zero,
+                      // USAMOS NUESTRO GETTER "A PRUEBA DE BALAS" AQUÍ
                       icon: Icon(
                         _esFavorito ? Icons.favorite : Icons.favorite_border,
                         color: _esFavorito ? Colors.red : Colors.grey[700],
@@ -537,8 +645,6 @@ void _toggleFavorito() async {
                 ),
               ],
             ),
-            
-            // 2. TEXTOS Y CALIFICACIÓN
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
@@ -548,8 +654,6 @@ void _toggleFavorito() async {
                   const SizedBox(height: 6),
                   Text(widget.curso.autor, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                   const SizedBox(height: 8),
-                  
-                  // Fila de Calificación Estilo Udemy
                   Row(
                     children: [
                       Text(widget.curso.calificacion.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.amber)),
@@ -564,6 +668,179 @@ void _toggleFavorito() async {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+// NUEVA TARJETA GRANDE PARA EL CARRUSEL
+class _CursoDestacadoCard extends StatelessWidget {
+  final Curso curso;
+  final Usuario? usuarioActivo;
+
+  const _CursoDestacadoCard({required this.curso, this.usuarioActivo});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (context) => CursoOverviewScreen(curso: curso, usuarioActivo: usuarioActivo),
+        ));
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Imagen de fondo con bordes redondeados
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                curso.urlImagen,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: Colors.grey[300],
+                  child: const Icon(Icons.image_not_supported, color: Colors.grey, size: 50),
+                ),
+              ),
+            ),
+            
+            // Gradiente oscuro para que resalten los textos
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                ),
+              ),
+            ),
+            
+            // Textos sobre la imagen
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: const Color(0xFF0D47A1), borderRadius: BorderRadius.circular(4)),
+                    child: const Text('DESTACADO', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    curso.titulo,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, height: 1.2),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    curso.autor,
+                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+// NUEVO COMPONENTE: CARRUSEL INFINITO CON FLECHAS
+class _CarruselInfinito extends StatefulWidget {
+  final List<Curso> cursos;
+  final Usuario? usuarioActivo;
+
+  const _CarruselInfinito({required this.cursos, this.usuarioActivo});
+
+  @override
+  State<_CarruselInfinito> createState() => _CarruselInfinitoState();
+}
+
+class _CarruselInfinitoState extends State<_CarruselInfinito> {
+  late PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // TRUCO MATEMÁTICO: Empezamos en una página artificialmente alta (múltiplo exacto) 
+    // para que el usuario pueda scrollear hacia atrás desde el inicio indefinidamente.
+    int paginaInicial = widget.cursos.isNotEmpty ? widget.cursos.length * 1000 : 0;
+    
+    // viewportFraction en 0.88 permite que se "asomen" las tarjetas de los lados
+    _pageController = PageController(viewportFraction: 0.88, initialPage: paginaInicial);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _irAdelante() {
+    _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+  }
+
+  void _irAtras() {
+    _pageController.previousPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.cursos.isEmpty) return const SizedBox();
+
+    return SizedBox(
+      height: 220, // Altura del carrusel aumentada para acomodar flechas
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // 1. EL CARRUSEL
+          PageView.builder(
+            controller: _pageController,
+            // Al omitir el "itemCount", le decimos a Flutter que la lista es infinita
+            itemBuilder: (context, index) {
+              // Calculamos el índice real usando el módulo (%)
+              final cursoIndex = index % widget.cursos.length;
+              return _CursoDestacadoCard(
+                curso: widget.cursos[cursoIndex],
+                usuarioActivo: widget.usuarioActivo,
+              );
+            },
+          ),
+          
+          // 2. FLECHA IZQUIERDA
+          Positioned(
+            left: 12,
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.white.withOpacity(0.85),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.arrow_back_ios_new, size: 16, color: Colors.black87),
+                onPressed: _irAtras,
+              ),
+            ),
+          ),
+          
+          // 3. FLECHA DERECHA
+          Positioned(
+            right: 12,
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.white.withOpacity(0.85),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black87),
+                onPressed: _irAdelante,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

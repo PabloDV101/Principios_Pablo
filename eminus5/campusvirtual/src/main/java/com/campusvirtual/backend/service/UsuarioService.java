@@ -8,7 +8,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,20 +36,34 @@ public class UsuarioService {
         throw new IllegalArgumentException("Usuario no encontrado.");
     }
 
+    // En tu UsuarioService.java
     @Transactional
     public Usuario toggleListaDeseos(String usuarioId, String cursoId) {
-        Usuario usuario = usuarioRepository.findById(usuarioId)
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
-        Curso curso = cursoRepository.findById(cursoId)
-                .orElseThrow(() -> new IllegalArgumentException("Curso no encontrado"));
+        Usuario usuario = usuarioRepository.findById(usuarioId).orElseThrow();
+        Curso curso = cursoRepository.findById(cursoId).orElseThrow();
 
-        // Si ya está en deseos, lo quitamos; si no, lo agregamos
         if (usuario.getListaDeseos().contains(curso)) {
-            usuario.getListaDeseos().remove(curso);
+            usuario.getListaDeseos().remove(curso); // Quita
         } else {
-            usuario.getListaDeseos().add(curso);
+            usuario.getListaDeseos().add(curso);    // Agrega
         }
+        return usuarioRepository.save(usuario);
+    }
+    public Usuario actualizarPerfil(String id, Usuario datosNuevos) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        usuario.setFotoUrl(datosNuevos.getFotoUrl());
+        usuario.setProfesion(datosNuevos.getProfesion());
+        usuario.setDescripcion(datosNuevos.getDescripcion());
 
         return usuarioRepository.save(usuario);
+    }
+
+    public List<String> obtenerIdsDeseos(String usuarioId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId).orElseThrow();
+        System.out.println("Usuario encontrado: " + usuario.getNombre());
+        System.out.println("Cursos en lista de deseos: " + usuario.getListaDeseos().size());
+        return usuario.getListaDeseos().stream().map(Curso::getId).collect(Collectors.toList());
     }
 }

@@ -24,11 +24,32 @@ class _MainScreenState extends State<MainScreen> {
     final esInvitado = widget.usuarioActivo == null;
 
     // Vistas dinámicas según el estado de autenticación
+   // Vistas dinámicas según el estado de autenticación
     final List<Widget> pantallas = [
       InicioTab(usuarioActivo: widget.usuarioActivo),
-      esInvitado ? const _PantallaBloqueada(titulo: 'Mis Cursos', icono: Icons.play_circle_outline) : MisCursosTab(usuarioActivo: widget.usuarioActivo!),
-      esInvitado ? const _PantallaBloqueada(titulo: 'Lista de Deseos', icono: Icons.favorite_outline) : DeseosTab(usuarioActivo: widget.usuarioActivo!),
-      esInvitado ? const _PantallaBloqueada(titulo: 'Mi Perfil', icono: Icons.person_outline) : PerfilTab(usuarioActivo: widget.usuarioActivo!),
+      
+      esInvitado 
+          ? const _PantallaBloqueada(titulo: 'Mis Cursos', icono: Icons.play_circle_outline) 
+          : MisCursosTab(usuarioActivo: widget.usuarioActivo!), // Mantenlo como lo tenías si se llama diferente
+          
+      esInvitado 
+          ? const _PantallaBloqueada(titulo: 'Lista de Deseos', icono: Icons.favorite_border) 
+          : DeseosTab(usuarioActivo: widget.usuarioActivo!), // Mantenlo como lo tenías si se llama diferente
+          
+      esInvitado 
+          ? const _PantallaBloqueada(titulo: 'Mi Perfil', icono: Icons.person_outline) 
+          : PerfilTab(
+              usuarioActivo: widget.usuarioActivo!,
+              // AQUÍ AGREGAMOS LA FUNCIÓN QUE FALTABA
+              onLogout: () {
+                // Borramos todo el historial de navegación y recargamos la app como invitado
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const MainScreen(usuarioActivo: null)),
+                  (route) => false,
+                );
+              },
+            ),
     ];
 
     return Scaffold(

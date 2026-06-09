@@ -6,6 +6,8 @@ class Entrega {
   final String comentariosEstudiante;
   double? calificacion; 
   String? retroalimentacionProfesor;
+  final String? archivoUrl;
+  final String? archivoNombre;
 
   Entrega({
     required this.id,
@@ -15,6 +17,8 @@ class Entrega {
     required this.comentariosEstudiante,
     this.calificacion,
     this.retroalimentacionProfesor,
+    this.archivoUrl,
+    this.archivoNombre,
   });
 
   factory Entrega.fromJson(Map<String, dynamic> json) {
@@ -27,6 +31,8 @@ class Entrega {
       comentariosEstudiante: json['comentariosEstudiante'] ?? '',
       calificacion: json['calificacion'] != null ? (json['calificacion']).toDouble() : null,
       retroalimentacionProfesor: json['retroalimentacionProfesor'],
+      archivoUrl: json['archivoUrl'],
+      archivoNombre: json['archivoNombre'],
     );
   }
 }

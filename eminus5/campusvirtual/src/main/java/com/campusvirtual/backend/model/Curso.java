@@ -47,12 +47,21 @@ public class Curso {
     @JoinTable(name = "curso_estudiantes", joinColumns = @JoinColumn(name = "curso_id"), inverseJoinColumns = @JoinColumn(name = "usuario_id"))
     @JsonIgnoreProperties({"listaDeseos"}) // Evita el ciclo infinito hacia Usuario
     private List<Usuario> estudiantes = new ArrayList<>();
-
+    // Añade esto debajo de tus otras variables
+    @Column(name = "video_url", length = 1000)
+    private String videoUrl;
+    // Añade esto debajo de tus otras variables
+    @ElementCollection
+    private List<String> aprendizajes = new ArrayList<>();
     // Relación N:M para Profesores
     @ManyToMany
     @JoinTable(name = "curso_profesores", joinColumns = @JoinColumn(name = "curso_id"), inverseJoinColumns = @JoinColumn(name = "usuario_id"))
     @JsonIgnoreProperties({"listaDeseos"})
     private List<Usuario> profesores = new ArrayList<>();
+    @ElementCollection
+    private List<Resena> resenas = new ArrayList<>();
+
+    // Recuerda generar el Getter y Setter para 'resenas'
 
     // Relación 1:N con Actividades (Un curso tiene muchas actividades)
     @OneToMany(mappedBy = "curso", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -64,4 +73,10 @@ public class Curso {
     // Relación 1:N con los mensajes del muro
     @OneToMany(mappedBy = "curso", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MensajeMuro> mensajes = new ArrayList<>();
+
+    // ... tus otras variables (titulo, autor, etc.)
+
+    @OneToMany(mappedBy = "curso", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orden ASC") // Para que siempre te las devuelva en el orden correcto
+    private List<Seccion> secciones = new ArrayList<>();
 }

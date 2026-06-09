@@ -1,4 +1,4 @@
-package com.projects.bandas.models;
+
 
 public class LoginRequest {
     private String username;

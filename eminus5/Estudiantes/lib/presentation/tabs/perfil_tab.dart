@@ -1,111 +1,263 @@
-// lib/presentation/screens/tabs/perfil_tab.dart
 import 'package:flutter/material.dart';
-import '../../../domain/entities/usuario.dart';
+import '../../domain/entities/usuario.dart';
+import '../../data/services/api_service.dart';
+import '../screens/editar_perfil_screen.dart';
 
-class PerfilTab extends StatelessWidget {
+class PerfilTab extends StatefulWidget {
   final Usuario usuarioActivo;
+  final VoidCallback onLogout; 
 
-  const PerfilTab({super.key, required this.usuarioActivo});
+  const PerfilTab({super.key, required this.usuarioActivo, required this.onLogout});
+
+  @override
+  State<PerfilTab> createState() => _PerfilTabState();
+}
+
+class _PerfilTabState extends State<PerfilTab> {
+  late Usuario _usuario;
+
+  @override
+  void initState() {
+    super.initState();
+    _usuario = widget.usuarioActivo;
+  }
+
+  void _navegarAEditarPerfil() async {
+    final usuarioActualizado = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => EditarPerfilScreen(usuarioActual: _usuario)),
+    );
+
+    if (usuarioActualizado != null && usuarioActualizado is Usuario) {
+      setState(() => _usuario = usuarioActualizado);
+    }
+  }
+
+  // --- MENÚ DE AJUSTES ACTUALIZADO ---
+  void _mostrarAjustes(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        bool modoOscuro = false; 
+        
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                  const SizedBox(height: 20),
+                  const Text('Ajustes de Cuenta', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+                  
+                  // Botón de Modo Oscuro
+                  SwitchListTile(
+                    title: const Text('Modo Oscuro', style: TextStyle(fontWeight: FontWeight.w600)),
+                    secondary: const Icon(Icons.dark_mode_outlined),
+                    activeColor: const Color(0xFF0D47A1),
+                    value: modoOscuro,
+                    onChanged: (val) {
+                      setModalState(() => modoOscuro = val);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('Nota: El modo oscuro requiere configurar el gestor de estado en tu main.dart')
+                      ));
+                    },
+                  ),
+                  
+                  // Botón de Contraseña
+                  ListTile(
+                    leading: const Icon(Icons.lock_outline),
+                    title: const Text('Cambiar Contraseña', style: TextStyle(fontWeight: FontWeight.w600)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      Navigator.pop(context); 
+                      _mostrarCambioPassword(context); 
+                    },
+                  ),
+                  
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Divider(),
+                  ),
+                  
+                  // NUEVO: BOTÓN DE CERRAR SESIÓN REUBICADO
+                  ListTile(
+                    leading: const Icon(Icons.logout, color: Colors.red),
+                    title: const Text('Cerrar Sesión', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                    onTap: () async {
+                      Navigator.pop(context); // Cierra el panel inferior primero
+                      await ApiService().logout();
+                      widget.onLogout(); // Llama a la función del MainScreen
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  void _mostrarCambioPassword(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cambiar Contraseña', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              obscureText: true, 
+              decoration: InputDecoration(labelText: 'Contraseña Actual', prefixIcon: const Icon(Icons.lock_open), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              obscureText: true, 
+              decoration: InputDecoration(labelText: 'Nueva Contraseña', prefixIcon: const Icon(Icons.lock), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context), 
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey))
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La API para cambiar la contraseña está en construcción')));
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            child: const Text('Guardar', style: TextStyle(color: Colors.white)),
+          )
+        ],
+      )
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Verificamos si tiene descripción para cambiar el estilo del texto
+    final bool tieneDescripcion = _usuario.descripcion != null && _usuario.descripcion!.trim().isNotEmpty;
+
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text('Mi Cuenta', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
-            const SizedBox(height: 24),
+            // FILA CON EL BOTÓN DE ENGRANAJE
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined, size: 28, color: Colors.black87),
+                  onPressed: () => _mostrarAjustes(context),
+                ),
+              ],
+            ),
             
-            // Tarjeta de Identidad Superior
+            // FOTO DE PERFIL
+            Hero(
+              tag: 'avatar-perfil',
+              child: CircleAvatar(
+                radius: 65,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: (_usuario.fotoUrl != null && _usuario.fotoUrl!.isNotEmpty)
+                    ? NetworkImage(_usuario.fotoUrl!)
+                    : const NetworkImage('https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png') as ImageProvider,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // NOMBRE Y PROFESIÓN
+            Text(
+              _usuario.nombre,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black, letterSpacing: -0.5),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _usuario.profesion != null && _usuario.profesion!.isNotEmpty 
+                  ? _usuario.profesion! 
+                  : 'Estudiante',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600], fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            
+            // CORREO
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D47A1).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _usuario.correo,
+                style: const TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 32),
+            
+            // BOTÓN PARA EDITAR PERFIL
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _navegarAEditarPerfil,
+                icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 20),
+                label: const Text('Editar Perfil', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D47A1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 2,
+                  shadowColor: const Color(0xFF0D47A1).withOpacity(0.4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            // NUEVO DISEÑO: SECCIÓN "SOBRE MÍ" CON TARJETA Y SOMBRA
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Sobre mí', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 36,
-                    backgroundColor: const Color(0xFF0D47A1), // Azul institucional
-                    child: Text(
-                      usuarioActivo.nombre.substring(0, 1),
-                      style: const TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          usuarioActivo.nombre,
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(usuarioActivo.correo, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-                      ],
-                    ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade100),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   )
                 ],
               ),
-            ),
-            
-            const SizedBox(height: 32),
-            const Text('Configuración', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
-            const SizedBox(height: 16),
-            
-            // Botones de acción limpios
-            _OpcionPerfil(icono: Icons.lock_outline, titulo: 'Cambiar contraseña', onTap: () {}),
-            _OpcionPerfil(icono: Icons.notifications_outlined, titulo: 'Notificaciones push', onTap: () {}),
-            _OpcionPerfil(icono: Icons.payment, titulo: 'Métodos de pago', onTap: () {}),
-            _OpcionPerfil(icono: Icons.help_outline, titulo: 'Soporte y ayuda', onTap: () {}),
-            
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pushReplacementNamed(context, '/'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: BorderSide(color: Colors.grey.shade300),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              child: Text(
+                tieneDescripcion 
+                    ? _usuario.descripcion!
+                    : 'Aún no has agregado una descripción. ¡Edita tu perfil para contarle a la comunidad sobre ti!',
+                style: TextStyle(
+                  fontSize: 15, 
+                  color: tieneDescripcion ? Colors.grey[800] : Colors.grey[400], 
+                  height: 1.6,
+                  fontStyle: tieneDescripcion ? FontStyle.normal : FontStyle.italic,
                 ),
-                child: const Text('Cerrar Sesión', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
               ),
-            )
+            ),
+            const SizedBox(height: 40),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _OpcionPerfil extends StatelessWidget {
-  final IconData icono;
-  final String titulo;
-  final VoidCallback onTap;
-
-  const _OpcionPerfil({required this.icono, required this.titulo, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: ListTile(
-        leading: Icon(icono, color: Colors.black87),
-        title: Text(titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-        onTap: onTap,
       ),
     );
   }

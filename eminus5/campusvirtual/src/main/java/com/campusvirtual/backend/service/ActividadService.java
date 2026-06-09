@@ -33,22 +33,28 @@ public class ActividadService {
     }
 
     @Transactional
-    public Entrega enviarTarea(String actividadId, String estudianteId, String comentarios) {
+    public Entrega enviarTarea(String actividadId, Entrega datosEntrega) {
+
         Actividad actividad = actividadRepository.findById(actividadId)
-                .orElseThrow(() -> new IllegalArgumentException("Actividad no encontrada"));
-        Usuario estudiante = usuarioRepository.findById(estudianteId)
-                .orElseThrow(() -> new IllegalArgumentException("Estudiante no encontrado"));
+                .orElseThrow(() -> new RuntimeException("Actividad no encontrada"));
 
-        // Verificamos si ya existe una entrega previa
-        Entrega entrega = entregaRepository.findByActividadIdAndEstudianteId(actividadId, estudianteId)
-                .orElse(new Entrega());
+        // 👇 2. BUSCAMOS AL USUARIO COMPLETO EN LA BD 👇
+        Usuario estudianteReal = usuarioRepository.findById(datosEntrega.getEstudianteId())
+                .orElseThrow(() -> new RuntimeException("Estudiante no encontrado"));
 
-        entrega.setActividad(actividad);
-        entrega.setEstudiante(estudiante); // ¡Con esto ya tenemos acceso a todo el objeto estudiante!
-        entrega.setComentariosEstudiante(comentarios);
-        entrega.setFechaEntrega(LocalDateTime.now());
+        Entrega nuevaEntrega = new Entrega();
 
-        return entregaRepository.save(entrega);
+        // Asignamos las relaciones completas y la fecha obligatoria
+        nuevaEntrega.setActividad(actividad);
+        nuevaEntrega.setEstudiante(estudianteReal);
+        nuevaEntrega.setFechaEntrega(LocalDateTime.now()); // Para que no choque con tu nullable = false
+
+        // Asignamos los textos y links
+        nuevaEntrega.setComentariosEstudiante(datosEntrega.getComentariosEstudiante());
+        nuevaEntrega.setArchivoUrl(datosEntrega.getArchivoUrl());
+        nuevaEntrega.setArchivoNombre(datosEntrega.getArchivoNombre());
+
+        return entregaRepository.save(nuevaEntrega);
     }
     @Transactional
     public Actividad actualizarActividad(String id, Actividad nuevosDatos) {

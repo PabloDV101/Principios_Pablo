@@ -30,6 +30,9 @@ public class Entrega {
     @Column(columnDefinition = "TEXT")
     private String retroalimentacionProfesor;
 
+    private String archivoUrl;
+    private String archivoNombre;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "actividad_id", nullable = false)
     @JsonIgnore
@@ -39,4 +42,7 @@ public class Entrega {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario estudiante;
+
+    @Transient
+    private String estudianteId;
 }

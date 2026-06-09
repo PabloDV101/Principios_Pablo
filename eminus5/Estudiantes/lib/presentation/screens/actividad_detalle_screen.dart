@@ -5,6 +5,12 @@ import '../../domain/entities/usuario.dart';
 import '../../domain/entities/curso.dart';
 import '../../domain/entities/entrega.dart';
 import '../../data/services/api_service.dart';
+import 'package:file_picker/file_picker.dart';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_file_downloader/flutter_file_downloader.dart';
+// Y asegúrate de importar tu VisorMaterialScreen si la usas
 
 class ActividadDetalleScreen extends StatefulWidget {
   final Actividad actividad;
@@ -15,9 +21,21 @@ class ActividadDetalleScreen extends StatefulWidget {
 
   @override
   State<ActividadDetalleScreen> createState() => _ActividadDetalleScreenState();
+  
 }
 
 class _ActividadDetalleScreenState extends State<ActividadDetalleScreen> {
+
+
+  void _seleccionarArchivo() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: true,
+    );
+    if (result != null) {
+      
+    }
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -103,13 +121,138 @@ class _VistaEstudiante extends StatefulWidget {
 
 class _VistaEstudianteState extends State<_VistaEstudiante> {
   final ApiService _apiService = ApiService();
-bool _enviando = false;
+  bool _enviando = false;
   final _comentarioCtrl = TextEditingController();
+  
+  // Variables para el archivo adjunto
+  PlatformFile? _archivoSeleccionado;
+
+  // --- MÉTODOS LÓGICOS ---
+
+  void _seleccionarArchivo() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: true,
+    );
+    if (result != null) {
+      setState(() => _archivoSeleccionado = result.files.first);
+    }
+  }
+
+  void _descargarMaterial(String url, String nombre) {
+    if (kIsWeb) {
+      launchUrl(Uri.parse(url));
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Iniciando descarga de $nombre...'))
+    );
+
+    FileDownloader.downloadFile(
+      url: url,
+      name: nombre,
+      onDownloadCompleted: (path) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Guardado en Descargas: $path'), backgroundColor: Colors.green));
+      },
+      onDownloadError: (error) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al descargar el archivo'), backgroundColor: Colors.red));
+      }
+    );
+  }
+
+  void _mostrarOpcionesArchivo(String url, String nombre) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('¿Qué deseas hacer con tu entrega?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.visibility, color: Color(0xFF0D47A1)),
+                title: const Text('Ver archivo'),
+                subtitle: const Text('Abrir en el navegador/visor nativo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.download, color: Colors.green),
+                title: const Text('Descargar'),
+                subtitle: const Text('Guardar en el dispositivo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _descargarMaterial(url, nombre);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  Future<void> _procesarYEnviarTarea() async {
+    final comentario = _comentarioCtrl.text.trim();
+    if (comentario.isEmpty && _archivoSeleccionado == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debes escribir una respuesta o adjuntar un archivo')));
+      return;
+    }
+
+    setState(() => _enviando = true);
+    
+    String? archivoUrl;
+    String? archivoNombre;
+
+    // 1. Subir archivo a Cloudinary si existe
+    if (_archivoSeleccionado != null) {
+      archivoUrl = await _apiService.subirArchivoCloudinary(_archivoSeleccionado!);
+      archivoNombre = _archivoSeleccionado!.name;
+
+      if (archivoUrl == null) {
+        setState(() => _enviando = false);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al subir el archivo a la nube'), backgroundColor: Colors.red));
+        return;
+      }
+    }
+
+    // 2. Enviar datos a Spring Boot
+    // NOTA: Asegúrate de que tu método _apiService.enviarTarea acepte estos nuevos parámetros opcionales
+    final entregaRegistrada = await _apiService.enviarTarea(
+      widget.actividad.id, 
+      widget.usuarioActivo.id, 
+      comentario,
+      archivoUrl: archivoUrl,       // <--- Parámetro nuevo
+      archivoNombre: archivoNombre, // <--- Parámetro nuevo
+    );
+    
+    setState(() => _enviando = false);
+
+    if (entregaRegistrada != null) {
+      widget.actividad.entregas.add(entregaRegistrada);
+      widget.onEntregada(); 
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tarea enviada con éxito', style: TextStyle(color: Colors.white)), backgroundColor: Colors.green));
+    } else {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al enviar tarea'), backgroundColor: Colors.red));
+    }
+  }
+
+
+  // --- INTERFAZ GRÁFICA (BUILD) ---
 
   @override
   Widget build(BuildContext context) {
     final entregaExistente = widget.actividad.entregas.where((e) => e.estudianteId == widget.usuarioActivo.id).firstOrNull;
 
+    // 1. ESTADO: TAREA YA ENVIADA
     if (entregaExistente != null) {
       return Container(
         padding: const EdgeInsets.all(24),
@@ -125,10 +268,28 @@ bool _enviando = false;
               ],
             ),
             const SizedBox(height: 16),
-            Text('Tu respuesta:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900)),
-            const SizedBox(height: 4),
-            Text(entregaExistente.comentariosEstudiante),
-            const SizedBox(height: 16),
+            if (entregaExistente.comentariosEstudiante.isNotEmpty) ...[
+              Text('Tu respuesta:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+              const SizedBox(height: 4),
+              Text(entregaExistente.comentariosEstudiante),
+              const SizedBox(height: 16),
+            ],
+            
+            // NUEVO: Mostrar el archivo adjunto si el alumno subió uno
+            if (entregaExistente.archivoUrl != null && entregaExistente.archivoUrl!.isNotEmpty) ...[
+              Text('Archivo adjunto:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+              const SizedBox(height: 8),
+              ListTile(
+                tileColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.green.shade200)),
+                leading: const Icon(Icons.insert_drive_file, color: Colors.green),
+                title: Text(entregaExistente.archivoNombre ?? 'Documento adjunto', maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: const Icon(Icons.more_vert),
+                onTap: () => _mostrarOpcionesArchivo(entregaExistente.archivoUrl!, entregaExistente.archivoNombre ?? 'Archivo'),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             const Divider(),
             if (entregaExistente.calificacion != null) ...[
               Text('Calificación: ${entregaExistente.calificacion} / 100', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -144,6 +305,7 @@ bool _enviando = false;
       );
     }
 
+    // 2. ESTADO: TAREA NO ENVIADA AÚN
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -163,53 +325,63 @@ bool _enviando = false;
               ),
               const SizedBox(height: 16),
               
-              // NUEVO: Botón de Adjuntar (Deshabilitado temporalmente)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: null, // Al ser null, Flutter lo deshabilita visualmente automático
-                  icon: const Icon(Icons.attach_file),
-                  label: const Text('Adjuntar archivo (Próximamente)'),
-                  style: OutlinedButton.styleFrom(
-                    disabledForegroundColor: Colors.grey.shade500,
-                    side: BorderSide(color: Colors.grey.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ),
+              // NUEVO: Selector de archivos
+              _archivoSeleccionado == null
+                  ? SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _enviando ? null : _seleccionarArchivo, 
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Adjuntar archivo'),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.grey.shade400),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.file_present, color: Color(0xFF0D47A1)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _archivoSeleccionado!.name, 
+                              maxLines: 1, 
+                              overflow: TextOverflow.ellipsis, 
+                              style: const TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold)
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                            onPressed: _enviando ? null : () => setState(() => _archivoSeleccionado = null),
+                            constraints: const BoxConstraints(),
+                            padding: EdgeInsets.zero,
+                          )
+                        ],
+                      ),
+                    ),
+
               const SizedBox(height: 24),
               
+              // Botón de Enviar
               SizedBox(
-  width: double.infinity,
-  child: _enviando 
-    ? const Center(child: CircularProgressIndicator(color: Color(0xFF0D47A1)))
-    : ElevatedButton(
-        onPressed: () async {
-          if (_comentarioCtrl.text.isEmpty) return;
-          
-          setState(() => _enviando = true);
-          
-          final entregaRegistrada = await _apiService.enviarTarea(
-            widget.actividad.id, 
-            widget.usuarioActivo.id, 
-            _comentarioCtrl.text
-          );
-          
-          setState(() => _enviando = false);
-
-          if (entregaRegistrada != null) {
-            // Actualizamos la lista local
-            widget.actividad.entregas.add(entregaRegistrada);
-            widget.onEntregada(); 
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al enviar tarea')));
-          }
-        },
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-        child: const Text('Enviar Tarea', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-      ),
-)
+                width: double.infinity,
+                child: _enviando 
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF0D47A1)))
+                  : ElevatedButton(
+                      onPressed: _procesarYEnviarTarea, // Llamamos a nuestro nuevo método
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                      child: const Text('Enviar Tarea', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                    ),
+              )
             ],
           ),
         ),
@@ -218,7 +390,7 @@ bool _enviando = false;
   }
 }
 
-// ============================================================================
+/// ============================================================================
 // VISTA PROFESOR: Lista de entregas y Modal para calificar
 // ============================================================================
 class _VistaProfesor extends StatelessWidget {
@@ -226,6 +398,71 @@ class _VistaProfesor extends StatelessWidget {
   final VoidCallback onCalificada;
 
   const _VistaProfesor({required this.actividad, required this.onCalificada});
+
+  // --- MÉTODOS PARA DESCARGAR/VER ARCHIVOS DEL ALUMNO ---
+
+  void _descargarMaterial(BuildContext context, String url, String nombre) {
+    if (kIsWeb) {
+      launchUrl(Uri.parse(url));
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Iniciando descarga de $nombre...'))
+    );
+
+    FileDownloader.downloadFile(
+      url: url,
+      name: nombre,
+      onDownloadCompleted: (path) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Guardado en Descargas: $path'), backgroundColor: Colors.green));
+      },
+      onDownloadError: (error) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al descargar el archivo'), backgroundColor: Colors.red));
+      }
+    );
+  }
+
+  void _mostrarOpcionesArchivo(BuildContext context, String url, String nombre) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Archivo del Alumno', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.visibility, color: Color(0xFF0D47A1)),
+                title: const Text('Ver archivo'),
+                subtitle: const Text('Abrir en el navegador/visor nativo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.download, color: Colors.green),
+                title: const Text('Descargar'),
+                subtitle: const Text('Guardar en el dispositivo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _descargarMaterial(context, url, nombre);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  // --- INTERFAZ GRÁFICA ---
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +480,7 @@ class _VistaProfesor extends StatelessWidget {
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              leading: CircleAvatar(backgroundColor: Colors.black, child: Text(entrega.estudianteNombre.substring(0, 1), style: const TextStyle(color: Colors.white))),
+              leading: CircleAvatar(backgroundColor: Colors.black, child: Text(entrega.estudianteNombre.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.white))),
               title: Text(entrega.estudianteNombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               subtitle: Text(entrega.calificacion != null ? 'Calificado: ${entrega.calificacion}' : 'Sin calificar', style: TextStyle(color: entrega.calificacion != null ? Colors.green : Colors.orange, fontWeight: FontWeight.bold)),
               trailing: OutlinedButton(
@@ -268,58 +505,80 @@ class _VistaProfesor extends StatelessWidget {
       builder: (context) => Container(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
         decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Respuesta del alumno:', style: TextStyle(fontWeight: FontWeight.bold)),
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 8), padding: const EdgeInsets.all(12),
-              width: double.infinity, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
-              child: Text(entrega.comentariosEstudiante, style: const TextStyle(fontStyle: FontStyle.italic)),
-            ),
-            const SizedBox(height: 16),
-            const Text('Puntuación (0 - 100)', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(controller: califCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(hintText: 'Ej. 95', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.black)))),
-            const SizedBox(height: 16),
-            const Text('Retroalimentación', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(controller: retroCtrl, maxLines: 2, decoration: InputDecoration(hintText: 'Buen trabajo en...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.black)))),
-            const SizedBox(height: 32),
-            SizedBox(
-  width: double.infinity,
-  child: ElevatedButton(
-    onPressed: () async {
-      if (califCtrl.text.isEmpty) return;
-      
-      final califDouble = double.tryParse(califCtrl.text);
-      if (califDouble == null) return;
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. TEXTO DEL ALUMNO
+              if (entrega.comentariosEstudiante.isNotEmpty) ...[
+                const Text('Respuesta del alumno:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8), padding: const EdgeInsets.all(12),
+                  width: double.infinity, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                  child: Text(entrega.comentariosEstudiante, style: const TextStyle(fontStyle: FontStyle.italic)),
+                ),
+                const SizedBox(height: 12),
+              ],
 
-      // Cerramos el panel inferior inmediatamente para mejor UX
-      Navigator.pop(context);
-      
-      // Llamamos a la API
-      final ApiService apiService = ApiService();
-      final entregaActualizada = await apiService.calificarTarea(
-        entrega.id, 
-        califDouble, 
-        retroCtrl.text
-      );
+              // 2. ARCHIVO ADJUNTO DEL ALUMNO
+              if (entrega.archivoUrl != null && entrega.archivoUrl!.isNotEmpty) ...[
+                const Text('Archivo adjunto:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ListTile(
+                  tileColor: Colors.blue.shade50,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.blue.shade200)),
+                  leading: const Icon(Icons.insert_drive_file, color: Color(0xFF0D47A1)),
+                  title: Text(entrega.archivoNombre ?? 'Documento adjunto', maxLines: 1, overflow: TextOverflow.ellipsis),
+                  trailing: const Icon(Icons.more_vert),
+                  onTap: () => _mostrarOpcionesArchivo(context, entrega.archivoUrl!, entrega.archivoNombre ?? 'Archivo'),
+                ),
+                const SizedBox(height: 24),
+              ],
 
-      if (entregaActualizada != null) {
-        // Actualizamos los datos en memoria para que se reflejen en la UI
-        entrega.calificacion = entregaActualizada.calificacion;
-        entrega.retroalimentacionProfesor = entregaActualizada.retroalimentacionProfesor;
-        onCalificada(); // Llama al SetState del Widget padre
-      }
-    },
-    style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
-    child: const Text('Asignar Calificación', style: TextStyle(fontWeight: FontWeight.bold)),
-  ),
-),
-            const SizedBox(height: 24),
-          ],
+              const Divider(),
+              const SizedBox(height: 16),
+
+              // 3. SECCIÓN DE CALIFICACIÓN
+              const Text('Puntuación (0 - 100)', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              TextField(controller: califCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(hintText: 'Ej. 95', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.black)))),
+              const SizedBox(height: 16),
+              const Text('Retroalimentación', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              TextField(controller: retroCtrl, maxLines: 2, decoration: InputDecoration(hintText: 'Buen trabajo en...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.black)))),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (califCtrl.text.isEmpty) return;
+                    
+                    final califDouble = double.tryParse(califCtrl.text);
+                    if (califDouble == null) return;
+
+                    Navigator.pop(context);
+                    
+                    final ApiService apiService = ApiService();
+                    final entregaActualizada = await apiService.calificarTarea(
+                      entrega.id, 
+                      califDouble, 
+                      retroCtrl.text
+                    );
+
+                    if (entregaActualizada != null) {
+                      entrega.calificacion = entregaActualizada.calificacion;
+                      entrega.retroalimentacionProfesor = entregaActualizada.retroalimentacionProfesor;
+                      onCalificada(); 
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
+                  child: const Text('Asignar Calificación', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );

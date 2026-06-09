@@ -21,15 +21,16 @@ public class ActividadController {
         return ResponseEntity.ok(actividadService.crearActividad(cursoId, actividad));
     }
 
-    // POST /api/actividades/123/entregar/456 -> El estudiante envía su tarea
-    @PostMapping("/{actividadId}/entregar/{estudianteId}")
+    @PostMapping("/{actividadId}/entregas")
     public ResponseEntity<Entrega> enviarTarea(
             @PathVariable String actividadId,
-            @PathVariable String estudianteId,
-            @RequestBody String comentarios) {
+            @RequestBody Entrega entregaRequest) {
 
-        return ResponseEntity.ok(actividadService.enviarTarea(actividadId, estudianteId, comentarios));
+        // En lugar de pasar variables sueltas, le pasamos el objeto completo al servicio
+        return ResponseEntity.ok(actividadService.enviarTarea(actividadId, entregaRequest));
     }
+
+
     @PutMapping("/{id}")
     public ResponseEntity<Actividad> actualizarActividad(@PathVariable String id, @RequestBody Actividad actividad) {
         return ResponseEntity.ok(actividadService.actualizarActividad(id, actividad));

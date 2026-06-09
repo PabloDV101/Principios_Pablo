@@ -3,10 +3,10 @@ class Band {
   final String nombre;
   final String descripcion;
   final String urlImagen;
-  final int likesCount;    // Nuevo
-  final int dislikesCount; // Nuevo
-  final bool dioLike;       // Nuevo: si el usuario actual dio like
-  final bool dioDislike;    // Nuevo: si el usuario actual dio dislike
+  final int likesCount;    
+  final int dislikesCount; 
+  final bool dioLike;      
+  final bool dioDislike;   
   final DateTime? fechaCreacion;
   final String usernameAutor; // Opcional, si tu backend lo devuelve
 

@@ -1,5 +1,6 @@
 package com.campusvirtual.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -30,13 +31,30 @@ public class MensajeMuro {
     @Column(nullable = false)
     private LocalDateTime fecha;
 
+    @Column(name = "usuario_id", nullable = false)
+    private String usuarioId;
+
+    @Column(name = "foto_url")
+    private String fotoUrl;
+
     private int reacciones = 0;
 
-
-
-    // (En ambas clases, ve a la relación de "Curso" y añade @JsonIgnore)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "curso_id", nullable = false)
-    @JsonIgnore // Un mensaje o actividad no necesita imprimir todo el curso de vuelta
+    @JsonIgnore
     private Curso curso;
+
+    // ... tus otras variables y anotaciones ...
+
+    // Pega esto al final de tu clase MensajeMuro:
+
+    @com.fasterxml.jackson.annotation.JsonProperty("usuarioId")
+    public void setUsuarioId(String usuarioId) {
+        this.usuarioId = usuarioId;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("fotoUrl")
+    public void setFotoUrl(String fotoUrl) {
+        this.fotoUrl = fotoUrl;
+    }
 }

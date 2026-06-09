@@ -2,6 +2,7 @@ package com.campusvirtual.backend.service;
 
 import com.campusvirtual.backend.model.Curso;
 import com.campusvirtual.backend.model.MensajeMuro;
+import com.campusvirtual.backend.model.Resena;
 import com.campusvirtual.backend.model.Usuario;
 import com.campusvirtual.backend.repository.CursoRepository;
 import com.campusvirtual.backend.repository.UsuarioRepository;
@@ -68,34 +69,50 @@ public class CursoService {
         return curso;
     }
 
-    @Transactional
-    public MensajeMuro agregarMensaje(String cursoId, MensajeMuro mensaje) {
-        Curso curso = cursoRepository.findById(cursoId)
-                .orElseThrow(() -> new IllegalArgumentException("Curso no encontrado"));
+    public Curso agregarMensaje(String cursoId, MensajeMuro mensajeRecibido) {
+        Curso curso = cursoRepository.findById(cursoId).orElseThrow();
 
-        mensaje.setCurso(curso);
-        mensaje.setFecha(LocalDateTime.now());
-        curso.getMensajes().add(mensaje); // Lo añadimos a la lista del curso
+        // Aquí es donde está el problema.
+        // Seguramente estás copiando los datos, PERO te faltan los nuevos:
+        MensajeMuro nuevoMensaje = new MensajeMuro();
+        nuevoMensaje.setRemitente(mensajeRecibido.getRemitente());
+        nuevoMensaje.setRol(mensajeRecibido.getRol());
+        nuevoMensaje.setMensaje(mensajeRecibido.getMensaje());
+        nuevoMensaje.setFecha(java.time.LocalDateTime.now());
 
-        cursoRepository.save(curso);
-        return mensaje;
+        // 👉 ¡AÑADE ESTAS DOS LÍNEAS AQUÍ! 👈
+        nuevoMensaje.setUsuarioId(mensajeRecibido.getUsuarioId());
+        nuevoMensaje.setFotoUrl(mensajeRecibido.getFotoUrl());
+        nuevoMensaje.setCurso(curso);
+
+        // Esta es tu línea 83 que está fallando:
+        curso.getMensajes().add(nuevoMensaje);
+        return cursoRepository.save(curso);
     }
-    public Curso calificarCurso(String id, double estrellas, String usuarioId) {
+    public Curso calificarCurso(String id, Resena nuevaResena) {
         Curso curso = cursoRepository.findById(id).orElseThrow(() -> new RuntimeException("Curso no encontrado"));
 
-        // Validamos que no haya votado antes
-        if (curso.getUsuariosQueCalificaron().contains(usuarioId)) {
-            throw new RuntimeException("El usuario ya calificó este curso");
+        // 1. ELIMINAMOS la restricción de que el creador no pueda calificar (si quieres permitirlo)
+        // Solo validamos que un mismo usuario no deje dos reseñas en el mismo curso
+        if (curso.getUsuariosQueCalificaron().contains(nuevaResena.getUsuarioId())) {
+            throw new RuntimeException("Ya has calificado este curso");
         }
 
-        if (curso.getCalificacion() == 0.0) {
-            curso.setCalificacion(estrellas);
+        // 2. CORRECCIÓN DEL PROMEDIO:
+        // Si es la primera, es la nota. Si ya hay notas, calculamos promedio ponderado.
+        double totalResenas = curso.getResenas().size();
+        if (totalResenas == 0) {
+            curso.setCalificacion(nuevaResena.getEstrellas());
         } else {
-            curso.setCalificacion((curso.getCalificacion() + estrellas) / 2.0);
+            // Promedio ponderado real: (Suma actual + Nueva nota) / (Cantidad total de notas)
+            double sumaActual = curso.getCalificacion() * totalResenas;
+            double nuevoPromedio = (sumaActual + nuevaResena.getEstrellas()) / (totalResenas + 1);
+            curso.setCalificacion(nuevoPromedio);
         }
 
-        // Registramos al usuario
-        curso.getUsuariosQueCalificaron().add(usuarioId);
+        curso.getUsuariosQueCalificaron().add(nuevaResena.getUsuarioId());
+        curso.getResenas().add(nuevaResena);
+
         return cursoRepository.save(curso);
     }
 }

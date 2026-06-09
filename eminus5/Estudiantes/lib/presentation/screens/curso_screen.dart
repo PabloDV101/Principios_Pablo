@@ -5,6 +5,7 @@ import '../../domain/entities/usuario.dart';
 import '../tabs/muro_tab.dart';
 import '../tabs/actividades_tab.dart';
 import '../tabs/seguimiento_tab.dart';
+import '../tabs/contenido_tab.dart';
 
 class CursoScreen extends StatelessWidget {
   final Curso curso;
@@ -15,7 +16,7 @@ class CursoScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         backgroundColor: const Color(0xFFFAFAFA),
         appBar: AppBar(
@@ -36,6 +37,7 @@ class CursoScreen extends StatelessWidget {
             indicatorWeight: 3,
             labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             tabs: const [
+              Tab(text: 'Contenido'),
               Tab(text: 'Muro'),
               Tab(text: 'Tareas'),
               Tab(text: 'Progreso'),
@@ -51,6 +53,7 @@ class CursoScreen extends StatelessWidget {
             Expanded(
               child: TabBarView(
                 children: [
+                  ContenidoTab(curso: curso, usuarioActivo: usuarioActivo),
                   MuroTab(curso: curso, usuarioActivo: usuarioActivo),
                   ActividadesTab(curso: curso, usuarioActivo: usuarioActivo),
                   SeguimientoTab(curso: curso, usuarioActivo: usuarioActivo),
